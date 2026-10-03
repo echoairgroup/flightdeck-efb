@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: flightdeck-efb
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: AIRPORTDB_TOKEN
+        sync: false

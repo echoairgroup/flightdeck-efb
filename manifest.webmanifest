@@ -1,0 +1,9 @@
+{
+  "name": "FlightDeck EFB",
+  "short_name": "FlightDeck",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07100b",
+  "theme_color": "#07100b",
+  "icons": []
+}

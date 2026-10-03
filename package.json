@@ -1,15 +1,13 @@
 {
-  "name": "flightdeck-efb",
-  "private": true,
+  "name": "flightdeck-efb-client",
   "version": "2.0.0",
-  "scripts": {
-    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "npm --prefix server run dev",
-    "dev:client": "npm --prefix client run dev",
-    "build": "npm --prefix client run build",
-    "start": "npm --prefix server start",
-    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
-    "check": "npm --prefix server run check"
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
-  "devDependencies": { "concurrently": "^9.1.2" }
+  "devDependencies": { "@vitejs/plugin-react": "^4.3.4", "vite": "^6.0.5" }
 }

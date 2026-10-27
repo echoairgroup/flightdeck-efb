@@ -7,6 +7,8 @@ It is designed for simulation use. It is not certified navigation equipment and 
 ## Product areas
 
 - **Flight planning:** import an existing SimBrief operational flight plan, review route details and save dispatch records to your account.
+- **MSFS Online Flight Planner:** open Microsoft's official browser-based planner for routes, charts, aviation weather and radio-navigation information.
+- **NewSky:** read-only airline flight board for ongoing flights, recent records and date-range history; API credentials stay on the server.
 - **Aviation weather:** request METAR and TAF reports from the Aviation Weather Center where reports are available.
 - **Airport desk:** query airport data and optionally enrich responses using a server-side AirportDB token.
 - **Live network:** read the public VATSIM data feed. This is a public-information view, not a VATSIM network connection.
@@ -28,14 +30,20 @@ A persistent PostgreSQL database is required for account registration, cloud syn
 
 ## Welcome emails (optional)
 
-Welcome emails are sent through [Resend](https://resend.com) only when both server-side environment variables are configured:
+Welcome emails are sent with [Resend](https://resend.com) after a **new account is created**. This is optional; existing accounts do not receive a retroactive email.
 
-- `RESEND_API_KEY`: a private Resend API key.
-- `EMAIL_FROM`: a sender identity on a domain verified with Resend, for example `FlyTech <welcome@your-domain.example>` after replacing the example domain with one you control.
+1. Create a Resend account at [resend.com](https://resend.com).
+2. In Resend, add a domain you control and finish its DNS verification (including the records Resend asks you to add). Use an address on that verified domain as the sender.
+3. Create a Resend API key with permission to send emails.
+4. Open the FlyTech **backend Web Service** in Render, then go to **Environment** and add:
+   - `RESEND_API_KEY` = your private Resend key
+   - `EMAIL_FROM` = e.g. `FlyTech <welcome@yourdomain.com>`, using your actual verified domain
+5. Save the changes and redeploy/restart the service.
+6. Test by registering a new account with an email address you can access, then check the inbox, spam folder and Render logs if it does not arrive.
 
-Set these values in Render's **Environment** page for the FlyTech web service, or in your local `.env` file during development. Never put the key in frontend code, Vite variables, GitHub, screenshots or a public issue. Keep the key private and configure a real verified sender before expecting delivery. With no email provider configured, account creation still works but the server reports that welcome-email delivery is not configured. A failed email delivery is logged by the server and does not undo account creation.
+Keep the Resend key in Render only. Do not place it in GitHub Pages variables, `VITE_*` settings, frontend code, screenshots or issues. If either setting is missing, the app can still register users but will not send welcome emails. Email delivery errors do not undo account creation.
 
-The welcome email is not an email-verification flow, and password recovery is not implemented in this version. Do not describe an email address as verified unless a separate verification flow is added.
+This welcome email is **not** an email-verification flow, and password recovery is not implemented in this version. Do not describe an email address as verified unless a separate verification flow is added.
 
 ## Local development
 
@@ -52,6 +60,7 @@ Optional environment variables:
 
 - `AIRPORTDB_TOKEN` — enrich airport details.
 - `RESEND_API_KEY` and `EMAIL_FROM` — enable welcome emails.
+- `NEWSKY_API_TOKEN` — read-only NewSky airline flight access; the token must include the `flights` permission.
 
 ## Deploy on Render
 
@@ -102,13 +111,24 @@ In brief:
 
 The companion has not been compiled against every local SDK revision in this environment. Use the SDK files installed on your computer; do not copy private SDK assemblies into this repository. Treat companion tokens like passwords and revoke a device if its token is exposed.
 
+## Configure NewSky
+
+1. In NewSky's Airline Management area, open the API-key settings (General) and create a key with the `flights` permission.
+2. In Render, open the FlyTech backend Web Service → **Environment** and add `NEWSKY_API_TOKEN` with that key as its value.
+3. Save and redeploy the backend. Do not put this key in GitHub, GitHub Pages variables, browser settings or any `VITE_*` variable.
+4. Sign in to FlyTech and open **NewSky flights**. You can view ongoing flights, recent flights, search a date range (maximum 30 days per request), and fetch an individual flight's details. The **Connections** page shows whether a key is present; refresh the flight board to check whether NewSky accepts it.
+
+The server uses NewSky's documented `Authorization: Bearer` header, caches results briefly and throttles requests conservatively because NewSky documents a limit of five API requests per ten seconds. A configured key is not automatically a verified key: if the scope is missing or the key is invalid, the NewSky page will show an actionable error.
+
 ## Integrations and limits
 
 - **SimBrief:** imports an existing OFP by Pilot ID or username; it does not generate a flight plan.
 - **Aviation Weather:** depends on the upstream service and report availability.
 - **VATSIM:** reads public feed data but does not sign pilots into the network.
 - **AirportDB:** optional provider enrichment requiring a server-side token.
-- **NewSky, Navigraph Charts and X-Plane telemetry:** require additional provider access and/or adapters. The interface must not imply those are fully connected until that work is implemented and verified.
+- **NewSky:** ongoing flights, recent flights, flight details and date-range history are connected through the NewSky Airline API. Configure `NEWSKY_API_TOKEN` on the backend only. The API key must include the `flights` permission. The interface is read-only and does not submit or change flights in NewSky.
+- **MSFS Online Flight Planner:** FlyTech opens [Microsoft's official planner](https://planner.flightsimulator.com/) in a separate tab. It is not embedded in FlyTech, and FlyTech does not access private planner APIs or copy licensed chart data.
+- **X-Plane telemetry:** a separate local telemetry adapter is still required before X-Plane data can be read.
 - **News feeds:** external services may be unavailable, delayed or editorially biased; always open the source publisher for context.
 
 ## Security and operational notes

@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, CircleDot, Clock3, Cloud, CloudSun, Compass, Database,
   ExternalLink, FileText, Fuel, Gauge, Globe2, LayoutDashboard, LockKeyhole, LogIn,
   LogOut, Map, MapPin, Menu, Moon, Navigation, NotebookPen, Plane, Plug, Plus,
-  Radio, RefreshCw, Route, Save, Search, Settings, ShieldCheck, Smartphone, Sun, Server,
+  Radio, RefreshCw, Route, Save, Search, Settings as SettingsIcon, ShieldCheck, Smartphone, Sun, Server,
   Trash2, UserRound, Users, Wifi, Wind, Wrench, X, Zap, ClipboardCheck
 } from "lucide-react";
 import L from "leaflet";
@@ -62,7 +62,7 @@ const NAV = [
   ]},
   { group: "PERSONAL & SYSTEM", items: [
     { id: "integrations", label: "Connections", icon: Plug },
-    { id: "settings", label: "Settings", icon: Settings }
+    { id: "settings", label: "Settings", icon: SettingsIcon }
   ]}
 ];
 

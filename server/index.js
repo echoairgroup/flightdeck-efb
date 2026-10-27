@@ -213,7 +213,7 @@ function normalizeNewSkyFlight(flight, index = 0) {
   const rating = newSkyFirst(row, ["rating.score", "rating.stars", "rating.value", "rating", "score", "stars"]);
   const distance = newSkyFirst(row, ["distanceNm", "distance_nm", "distance", "route.distance"]);
   return {
-    id: String(newSkyFirst(row, ["id", "flightId", "flight_id", "_id", "uuid"]) ?? index),
+    id: String(newSkyFirst(row, ["id", "flightId", "flight_id", "_id", "uuid"]) ?? ""),
     flightNumber: String(newSkyFirst(row, ["flightNumber", "flight_number", "number", "callsign", "route.flightNumber", "route.name", "flight"]) ?? ""),
     departure: String(departure ?? "—"),
     arrival: String(arrival ?? "—"),
@@ -237,7 +237,7 @@ function newSkyTotal(payload, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 function newSkyDate(value) {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(value + "T00:00:00.000Z");
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date : null;
 }

@@ -1,10 +1,10 @@
-name: FlightDeck build checks
+name: FlyTech build checks
 
 on:
   push:
-    branches: [main, build/real-efb-platform]
+    branches: [main, build/real-efb-platform, "refresh/**"]
   pull_request:
-    branches: [main]
+    branches: [main, build/real-efb-platform]
 
 permissions:
   contents: read

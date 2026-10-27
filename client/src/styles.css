@@ -834,3 +834,67 @@ input, select, textarea { border-radius: 9px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+
+/* Microsoft Flight Simulator Online Planner */
+.planner-hero {
+  display: grid; grid-template-columns: 58px minmax(0,1fr) auto; align-items: start; gap: 20px;
+  padding: clamp(20px,3vw,30px); border: 1px solid var(--line); border-radius: 20px;
+  background: linear-gradient(125deg, var(--panel), var(--green-wash)); box-shadow: var(--shadow);
+}
+.planner-hero-icon { display:grid; place-items:center; width:56px; height:56px; border-radius:17px; color:var(--accent); background:var(--panel); border:1px solid var(--line); }
+.planner-hero-copy .eyebrow { color:var(--accent); font-size:11px; font-weight:800; letter-spacing:.12em; }
+.planner-hero-copy h2 { margin:9px 0 10px; font-size:clamp(21px,2.5vw,30px); letter-spacing:-.04em; }
+.planner-hero-copy p { max-width:760px; margin:0 0 20px; color:var(--text-soft); line-height:1.75; }
+.planner-status { display:flex; align-items:center; gap:7px; white-space:nowrap; padding:8px 11px; border-radius:999px; color:var(--accent-strong); background:var(--panel); border:1px solid var(--line); font-size:12px; font-weight:750; }
+.planner-info-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:18px; }
+.planner-feature-list { display:grid; gap:4px; }
+.planner-feature-list > div { display:flex; align-items:flex-start; gap:12px; padding:13px 0; color:var(--accent); border-bottom:1px solid var(--line); }
+.planner-feature-list > div:last-child { border-bottom:0; }
+.planner-feature-list span { display:grid; gap:5px; color:var(--text); }
+.planner-feature-list small { color:var(--muted); line-height:1.55; }
+.planner-steps { margin:0; padding-left:21px; color:var(--text-soft); line-height:1.8; }
+.planner-steps li { padding:4px 0 7px; }
+.planner-source { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-top:16px; padding:14px 2px; color:var(--muted); font-size:12px; }
+.planner-source a { display:inline-flex; align-items:center; gap:7px; color:var(--accent); font-weight:700; text-decoration:none; }
+
+/* NewSky read-only flight board */
+.newsky-feed-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; }
+.newsky-date-form { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; margin-left:auto; }
+.newsky-date-form label { display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:700; }
+.newsky-date-form input { min-height:42px; min-width:145px; padding:9px 10px; border:1px solid var(--line-strong); border-radius:10px; color:var(--text); background:var(--panel); font:inherit; }
+.newsky-feed-note { display:flex; align-items:flex-start; gap:8px; margin-top:17px; color:var(--muted); font-size:12px; line-height:1.6; }
+.newsky-feed-note svg { flex:0 0 auto; color:var(--accent); margin-top:2px; }
+.newsky-flight-list { display:grid; gap:10px; }
+.newsky-flight { display:grid; grid-template-columns:minmax(180px,.8fr) minmax(200px,1fr) minmax(180px,.8fr); align-items:center; gap:16px; padding:16px; background:var(--panel-alt); border:1px solid var(--line); border-radius:14px; }
+.newsky-route { display:flex; align-items:center; gap:13px; color:var(--accent); }
+.newsky-route > div { display:grid; gap:5px; min-width:0; }
+.newsky-route small { color:var(--muted); font-size:10px; letter-spacing:.08em; font-weight:800; }
+.newsky-route strong { color:var(--text); font-size:19px; letter-spacing:-.03em; }
+.newsky-flight-main { display:grid; min-width:0; gap:5px; }
+.newsky-flight-main > strong { color:var(--text); font-size:14px; }
+.newsky-flight-main > span { color:var(--text-soft); font-size:12px; overflow-wrap:anywhere; }
+.newsky-flight-main > small { color:var(--muted); font-size:11px; }
+.newsky-flight-metrics { display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap:9px; color:var(--muted); font-size:12px; }
+.newsky-flight-metrics .text-action { padding:0; }
+.newsky-flight-details { grid-column:1/-1; overflow:hidden; border-top:1px solid var(--line); padding-top:13px; }
+.newsky-flight-details > strong { font-size:12px; }
+.newsky-flight-details pre { max-width:100%; max-height:280px; overflow:auto; margin:9px 0 0; padding:12px; border-radius:10px; background:var(--panel-raised); color:var(--text-soft); white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.6 "DM Mono",monospace; }
+
+@media (max-width: 1050px) {
+  .newsky-flight { grid-template-columns:minmax(150px,.8fr) minmax(180px,1fr); }
+  .newsky-flight-metrics { grid-column:1/-1; padding-top:8px; border-top:1px solid var(--line); }
+  .planner-hero { grid-template-columns:52px minmax(0,1fr); }
+  .planner-status { grid-column:2; justify-self:start; }
+}
+@media (max-width: 760px) {
+  .planner-info-grid { grid-template-columns:1fr; }
+  .planner-hero { grid-template-columns:1fr; gap:13px; }
+  .planner-status { grid-column:auto; }
+  .newsky-feed-controls, .newsky-date-form { width:100%; margin-left:0; }
+  .newsky-date-form label { flex:1; min-width:115px; }
+  .newsky-date-form input { min-width:0; width:100%; }
+  .newsky-flight { grid-template-columns:1fr; gap:12px; }
+  .newsky-flight-metrics { grid-column:auto; }
+  .newsky-flight-details { grid-column:auto; }
+}

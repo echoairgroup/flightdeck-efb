@@ -1,6 +1,6 @@
-# FlightDeck MSFS 2024 Companion (Windows)
+# FlyTech MSFS 2024 Companion (Windows)
 
-This is the local Windows process that connects MSFS 2024 to your cloud FlightDeck EFB. It is separate from the website because browsers cannot directly read another process on the simulator PC.
+This is the local Windows process that connects MSFS 2024 to your FlyTech cloud flight workspace. It is separate from the website because browsers cannot directly read another process on the simulator PC.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ This is the local Windows process that connects MSFS 2024 to your cloud FlightDe
 - The Microsoft Flight Simulator 2024 SDK installed from the simulator's Developer Mode
 - Visual Studio with the .NET desktop development workload and the .NET Framework 4.8 targeting pack
 - A deployed HTTPS FlightDeck instance with DATABASE_URL configured
-- A FlightDeck account with access to Settings
+- A FlyTech account with access to Settings
 
 ## Build
 
@@ -23,7 +23,7 @@ No SDK DLLs are copied into this repository; use the assembly that comes with yo
 
 ## Pairing
 
-1. Log in to the deployed FlightDeck website.
+1. Log in to the deployed FlyTech website.
 2. Open Settings and the Microsoft Flight Simulator 2024 panel.
 3. Generate a one-time pairing code. It expires after five minutes and can be used only once.
 4. In the Windows companion, enter the HTTPS website URL and the eight-character code, then click Pair / connect.

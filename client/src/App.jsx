@@ -582,7 +582,7 @@ function App() {
       <div className="page-content">
         {page === "home" && <Dashboard user={user} health={health} aircraft={selectedAircraft} latestPlan={latestPlan} lastFlight={lastFlight} plans={plans} flights={flights} telemetry={telemetry} telemetryError={telemetryError} telemetryAge={telemetryAge} navigate={navigate} refreshPrivateData={refreshPrivateData} refreshWeather={refreshWeather} loading={loading} />}
         {page === "dispatch" && <Dispatch user={user} plans={plans} savePlan={savePlan} removePlan={removePlan} loading={loading} navigate={navigate} />}
-        {page === "msfs-planner" && <MSFSPlanner user={user} aircraft={selectedAircraft} lookupAirport={code => api("/airports/" + encodeURIComponent(code))} savePlan={savePlan} notify={notify} />}
+        {page === "msfs-planner" && <MSFSPlanner user={user} navigate={navigate} aircraft={selectedAircraft} lookupAirport={code => api("/airports/" + encodeURIComponent(code))} savePlan={savePlan} notify={notify} />}
         {page === "newsky" && <NewSkyPage user={user} navigate={navigate} />}
         {page === "airports" && <Airports airport={airport} refreshAirport={refreshAirport} loading={loading} />}
         {page === "weather" && <Weather weather={weather} refreshWeather={refreshWeather} loading={loading} />}

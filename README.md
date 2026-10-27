@@ -67,6 +67,27 @@ Set `DATABASE_URL` to the persistent PostgreSQL database intended for this app, 
 
 After deployment, open `/api/health`. It should return `ok: true`, `service: "flightdeck-efb"`, and `database: true`. A responding web server alone does not confirm that database-backed features are ready.
 
+## GitHub Pages frontend
+
+A static frontend deployment is available through `.github/workflows/pages.yml`. It builds only `client/dist` and publishes it to the repository's GitHub Pages site. The Express API, PostgreSQL database, account endpoints and email delivery still need a server host; GitHub Pages cannot run the Node server.
+
+### Enable the Pages workflow
+
+1. In the repository, open **Settings → Pages** and choose **GitHub Actions** as the build/deployment source if it is not already selected.
+2. Open **Settings → Secrets and variables → Actions → Variables** and create a repository variable named `VITE_API_BASE_URL`.
+3. Set that variable to the public base URL of the existing FlyTech backend on Render, without a trailing slash and without `/api`. Use the URL shown on the Render service's Overview page — do not use a database URL or a secret.
+4. The workflow publishes `https://echoairgroup.github.io/flightdeck-efb/` whenever the `refresh/flytech-product-experience` branch is updated. Check the **Actions** tab for the deployment result and the Pages environment URL.
+
+The URL is a public frontend setting, not a secret. The build uses the hash router so direct page links work on GitHub Pages' project subpath (for example, `/#/news` and `/#/simulator-setup`). The site also uses the `/flightdeck-efb/` asset base path for scripts, icons, the web manifest and the service worker.
+
+### Connect the frontend to the API
+
+The client sends API calls to `VITE_API_BASE_URL + /api`. The Express server in `server/index.js` allows credentialed browser requests from `https://echoairgroup.github.io` and supports additional exact origins via `FRONTEND_ORIGIN` or comma-separated `FRONTEND_ORIGINS`. The server-side CORS changes in this branch must also be deployed to the existing Render service before the Pages frontend can use its account and data endpoints.
+
+**Important browser limitation:** GitHub Pages and the default Render hostname are different sites. Login currently relies on an HTTP-only cookie, so cross-site sign-in can be affected by browsers that block third-party cookies. The API sets a secure cross-site cookie for the Pages frontend, but that does not override browser privacy settings. For reliable production account sessions across modern browsers, use a custom domain setup that makes the frontend and API same-site, or keep the full-stack app served from Render.
+
+If `VITE_API_BASE_URL` is empty, the static frontend can still render, but server-backed areas show a setup message instead of silently calling the wrong `/api` endpoint. Do not place database credentials, `SESSION_SECRET`, Resend keys or other private tokens in GitHub Actions variables exposed to Vite.
+
 ## MSFS 2024 pairing
 
 See [the Windows companion guide](companion/msfs-bridge/README.md) for SDK requirements and the build steps.

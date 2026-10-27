@@ -570,7 +570,7 @@ function App() {
         {page === "airlines" && <AirlinesPage user={user} navigate={navigate} notify={notify} />}
         {page === "events" && <CommunityPage user={user} navigate={navigate} notify={notify} />}
         {page === "learn" && <AcademyPage navigate={navigate} />}
-        {page === "settings" && <Settings user={user} setUser={setUser} onSignedIn={loadPrivateData} theme={theme} setTheme={setTheme} aircraft={aircraft} setAircraft={updateAircraft} signOut={signOut} pairingCode={pairingCode} generatePairingCode={generatePairingCode} health={health} navigate={navigate} />}
+        {page === "settings" && <Settings user={user} setUser={setUser} onSignedIn={loadPrivateData} theme={theme} setTheme={setTheme} aircraft={aircraft} setAircraft={updateAircraft} signOut={signOut} pairingCode={pairingCode} generatePairingCode={generatePairingCode} health={health} navigate={navigate} notify={notify} />}
       </div>
     </main>
 
@@ -1015,7 +1015,7 @@ function Integrations({ status, error, onRefresh, navigate }) {
   </>;
 }
 
-function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAircraft, signOut, pairingCode, generatePairingCode, health, navigate }) {
+function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAircraft, signOut, pairingCode, generatePairingCode, health, navigate, notify }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -1036,6 +1036,7 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
       setUser(result.user);
       setPassword("");
       setAccountSaved(true);
+      if (mode === "register" && notify) notify(result.welcomeEmail === "enabled" ? "Welcome to FlyTech. Your welcome email is being sent." : "Account created. Welcome-email delivery needs server configuration.", "success");
       await onSignedIn();
     } catch (error) { setAuthError(error.message); }
     finally { setAuthBusy(false); }
@@ -1065,7 +1066,8 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
           <div className="bridge-summary"><div className="bridge-icon"><Activity size={21} /></div><div><strong>{health?.database ? "Pairing service available" : "Cloud database required"}</strong><p>The Windows companion uses Microsoft SimConnect on the same PC as the simulator. It sends a limited live telemetry snapshot to your signed-in FlyTech account; a phone browser cannot read the simulator process directly.</p></div><Pill tone={health?.database && user ? "green" : "amber"}>{user ? (health?.database ? "READY TO PAIR" : "SETUP REQUIRED") : "SIGN IN FIRST"}</Pill></div>
           {user ? <div className="pairing-area"><div className="pairing-instructions"><strong>1. Create a one-time pairing code</strong><p>Open this page on the device where you are signed in, generate a code, then enter it in the Windows companion running on the PC with MSFS 2024.</p><button className="button-primary" onClick={generatePairingCode} disabled={!health?.database}><Zap size={15} /> Generate pairing code</button></div>{pairingCode && <div className="pairing-code-box"><span>ONE-TIME CODE</span><strong>{pairingCode.code}</strong><small>Expires {pairingCode.expiresAt ? new Date(pairingCode.expiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "soon"} · use once</small><button className="button-secondary" onClick={copyPairingCode}>Copy code</button></div>}</div> : <div className="notice notice-info"><LockKeyhole size={16} /><span>Sign in to create a pairing code. Pairing is specific to your account. The companion receives its own revocable token and never receives your browser session cookie.</span></div>}
           <div className="bridge-next-steps"><span>2</span><p><strong>Install the companion</strong><br />The Windows companion requires the Microsoft Flight Simulator 2024 SDK's managed SimConnect library. Build instructions are included in the repository under <code>companion/msfs-bridge</code>.</p></div>
-          <div className="bridge-next-steps"><span>3</span><p><strong>Keep the companion running</strong><br />With MSFS open and a flight loaded, the companion sends current position, altitude, airspeed, groundspeed, heading and vertical speed to FlyTech. The panel above will change when data is actually received.</p></div>
+          <div className="bridge-next-steps"><span>3</span><p><strong>Keep the companion running</strong><br />With MSFS open and a flight loaded, the companion sends current position, altitude, airspeed, groundspeed, heading and vertical speed to FlyTech. The status updates after live telemetry reaches FlyTech.</p></div>
+          <button className="button-secondary" onClick={() => navigate("simulator")}><Activity size={15} /> Open the complete MSFS setup guide <ArrowRight size={14} /></button>
         </Panel>
 
         <Panel title="Data and privacy" subtitle="Understand what syncs and where it is stored">

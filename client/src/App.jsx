@@ -92,7 +92,12 @@ const PAGE_PATHS = {
   integrations: "/connections",
   settings: "/settings"
 };
-const pageFromLocation = () => Object.entries(PAGE_PATHS).find(([, path]) => path === window.location.pathname)?.[0] || "home";
+const pageFromLocation = () => {
+  const currentPath = IS_GITHUB_PAGES
+    ? (window.location.hash.startsWith("#/") ? window.location.hash.slice(1) : "/")
+    : window.location.pathname;
+  return Object.entries(PAGE_PATHS).find(([, path]) => path === currentPath)?.[0] || "home";
+};
 
 const CHECKLISTS = {
   "Pre-flight": ["Route and destination verified", "Weather and NOTAM sources reviewed", "Aircraft and livery selected", "Fuel and payload entered in the aircraft add-on", "Performance figures checked against the add-on", "Flight plan loaded in the FMS", "Required simulator/network rules reviewed"],
@@ -104,10 +109,16 @@ const CHECKLISTS = {
   "Shutdown": ["Runway vacated and taxi route followed", "Parking position and brake state checked", "Aircraft shutdown according to add-on checklist", "Flight data saved before closing the simulator", "Flight log completed"]
 };
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+const IS_GITHUB_PAGES = import.meta.env.VITE_GITHUB_PAGES === "true";
+
 const api = async (path, options = {}) => {
+  if (IS_GITHUB_PAGES && !API_BASE_URL) {
+    throw new Error("The FlyTech API is not configured for GitHub Pages yet. Add the VITE_API_BASE_URL repository variable with the public URL of the existing backend.");
+  }
   const headers = { Accept: "application/json", ...(options.headers || {}) };
   if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
-  const response = await fetch("/api" + path, {
+  const response = await fetch((API_BASE_URL || "") + "/api" + path, {
     credentials: "include",
     ...options,
     headers
@@ -294,12 +305,16 @@ function App() {
   }, [navItem.label]);
 
   useEffect(() => {
-    const handlePopState = () => {
+    const handleLocationChange = () => {
       setPage(pageFromLocation());
       setMobileMenu(false);
     };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener("popstate", handleLocationChange);
+    window.addEventListener("hashchange", handleLocationChange);
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.removeEventListener("hashchange", handleLocationChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -359,7 +374,12 @@ function App() {
 
   const navigate = id => {
     const target = PAGE_PATHS[id] || "/";
-    if (window.location.pathname !== target) window.history.pushState({ page: id }, "", target);
+    if (IS_GITHUB_PAGES) {
+      const hashTarget = "#" + target;
+      if (window.location.hash !== hashTarget) window.location.hash = hashTarget;
+    } else if (window.location.pathname !== target) {
+      window.history.pushState({ page: id }, "", target);
+    }
     setPage(id);
     setMobileMenu(false);
     setToast(null);

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Activity, AlertCircle, ArrowRight, ArrowDownRight, Check, CheckCircle2, Database, Download, FileText, MapPin, Plane, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Activity, AlertCircle, ArrowRight, ArrowDownRight, Check, CheckCircle2, Database, Download, FileText, LockKeyhole, LogIn, MapPin, Plane, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload, UserRound } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -164,6 +164,17 @@ export default function MSFSPlanner({ user, aircraft, lookupAirport, savePlan, n
   const [error, setError] = useState("");
   const [fileBusy, setFileBusy] = useState(false);
 
+  if (!user) {
+    return <div className="planner-auth-gate">
+      <div className="planner-auth-icon"><LockKeyhole size={26} /></div>
+      <div className="eyebrow">PILOT ACCOUNT REQUIRED</div>
+      <h1>Sign in to use the MSFS Flight Planner</h1>
+      <p>Create a FlyTech account or sign in to build routes, edit waypoints, import and export MSFS 2024 flight plans, and save your planning work. No welcome email is sent, and no email address is required for registration.</p>
+      <div className="planner-auth-actions"><button type="button" className="button-primary" onClick={() => navigate("settings")}><UserRound size={15} /> Create account or sign in</button></div>
+      <div className="planner-auth-footnote"><ShieldCheck size={15} /><span>Planner drafts stay in this browser. Cloud saving requires a signed-in account and connected backend.</span></div>
+    </div>;
+  }
+
   useEffect(() => {
     try { localStorage.setItem("fd-msfs-planner-v1", JSON.stringify({ departureCode, arrivalCode, origin, destination, waypoints, routeType, cruiseAltitude, cruiseSpeed, flightNumber })); } catch {}
   }, [departureCode, arrivalCode, origin, destination, waypoints, routeType, cruiseAltitude, cruiseSpeed, flightNumber]);
@@ -326,7 +337,7 @@ export default function MSFSPlanner({ user, aircraft, lookupAirport, savePlan, n
             <label className="button-secondary planner-import-button"><Upload size={15} />{fileBusy ? "Reading file…" : "Import .pln"}<input type="file" accept=".pln,.xml,application/xml,text/xml" onChange={importPlan} disabled={fileBusy} /></label>
             <button type="button" className="button-secondary" onClick={saveLocal}><Save size={15} /> Save on this device</button>
           </div>
-          {user ? <button type="button" className="button-secondary planner-cloud-save" onClick={() => { if (!ready) { notify?.("Load both airports before saving.", "error"); return; } void savePlan(plan).catch(() => {}); }}><Database size={15} /> Save to cloud library</button> : <div className="planner-source-note"><ShieldCheck size={15} /><span>Local planning and .pln export work without an account. Cloud saving requires sign-in.</span></div>}
+          <button type="button" className="button-secondary planner-cloud-save" onClick={() => { if (!ready) { notify?.("Load both airports before saving.", "error"); return; } void savePlan(plan).catch(() => {}); }}><Database size={15} /> Save to cloud library</button>
           <div className="planner-source-note"><ShieldCheck size={15} /><span>Built-in airport coordinates are bundled with the page. Additional airport lookups require the FlyTech backend.</span></div>
         </PlannerCard>
         <PlannerCard title="Aircraft profile" subtitle="No aircraft performance data is assumed."><div className="planner-aircraft"><div className="planner-aircraft-icon"><Plane size={22} /></div><div><strong>{aircraft?.name || "Selected aircraft"}</strong><span>{aircraft?.icao || "Aircraft not selected"}</span><small>Speed is a user-editable estimate and should reflect your planned cruise speed.</small></div></div></PlannerCard>

@@ -5,7 +5,8 @@ import {
   ExternalLink, FileText, Fuel, Gauge, Globe2, LayoutDashboard, LockKeyhole, LogIn,
   LogOut, Map, MapPin, Menu, Moon, Navigation, NotebookPen, Plane, Plug, Plus,
   Radio, RefreshCw, Route, Save, Search, Settings as SettingsIcon, ShieldCheck, Smartphone, Sun, Server,
-  Trash2, UserRound, Users, Wifi, Wind, Wrench, X, Zap, ClipboardCheck
+  Trash2, UserRound, Users, Wifi, Wind, Wrench, X, Zap, ClipboardCheck,
+  Building2, CalendarDays, GraduationCap, Mail, Newspaper, ArrowUpRight, CircleHelp
 } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -48,23 +49,50 @@ const AIRCRAFT = [
 
 const NAV = [
   { group: "FLIGHT OPERATIONS", items: [
-    { id: "home", label: "Flight deck", icon: LayoutDashboard },
+    { id: "home", label: "Overview", icon: LayoutDashboard },
     { id: "dispatch", label: "Flight planning", icon: Route },
-    { id: "airports", label: "Airport desk", icon: MapPin },
+    { id: "airports", label: "Airports", icon: MapPin },
     { id: "weather", label: "Weather", icon: CloudSun },
     { id: "traffic", label: "Live network", icon: Radio }
   ]},
-  { group: "PILOT TOOLS", items: [
-    { id: "tools", label: "Calculators", icon: Gauge },
+  { group: "PILOT WORKSPACE", items: [
     { id: "checklists", label: "Checklists", icon: ClipboardCheck },
     { id: "logbook", label: "Logbook", icon: BookOpen },
-    { id: "scratch", label: "Scratchpad", icon: NotebookPen }
+    { id: "tools", label: "Calculators", icon: Gauge },
+    { id: "scratch", label: "Scratchpad", icon: NotebookPen },
+    { id: "simulator", label: "MSFS 2024 setup", icon: Activity }
   ]},
-  { group: "PERSONAL & SYSTEM", items: [
+  { group: "DISCOVER & COMMUNITY", items: [
+    { id: "news", label: "Aviation news", icon: Newspaper },
+    { id: "airlines", label: "Virtual airlines", icon: Building2 },
+    { id: "events", label: "Community events", icon: CalendarDays },
+    { id: "learn", label: "Pilot academy", icon: GraduationCap }
+  ]},
+  { group: "ACCOUNT & SYSTEM", items: [
     { id: "integrations", label: "Connections", icon: Plug },
-    { id: "settings", label: "Settings", icon: SettingsIcon }
+    { id: "settings", label: "Account & settings", icon: SettingsIcon }
   ]}
 ];
+
+const PAGE_PATHS = {
+  home: "/",
+  dispatch: "/flight-planning",
+  airports: "/airports",
+  weather: "/weather",
+  traffic: "/live-network",
+  tools: "/calculators",
+  checklists: "/checklists",
+  logbook: "/logbook",
+  scratch: "/scratchpad",
+  simulator: "/simulator-setup",
+  news: "/news",
+  airlines: "/airlines",
+  events: "/community",
+  learn: "/academy",
+  integrations: "/connections",
+  settings: "/settings"
+};
+const pageFromLocation = () => Object.entries(PAGE_PATHS).find(([, path]) => path === window.location.pathname)?.[0] || "home";
 
 const CHECKLISTS = {
   "Pre-flight": ["Route and destination verified", "Weather and NOTAM sources reviewed", "Aircraft and livery selected", "Fuel and payload entered in the aircraft add-on", "Performance figures checked against the add-on", "Flight plan loaded in the FMS", "Required simulator/network rules reviewed"],
@@ -199,8 +227,8 @@ function RouteMap({ plan }) {
 }
 
 function App() {
-  const [page, setPage] = useState("home");
-  const [theme, setTheme] = useState(() => localStorage.getItem("fd-theme") || "dark");
+  const [page, setPage] = useState(() => pageFromLocation());
+  const [theme, setTheme] = useState(() => localStorage.getItem("fd-theme-v2") || "light");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [aircraft, setAircraft] = useState(() => localStorage.getItem("fd-aircraft") || "A21N");
@@ -258,12 +286,21 @@ function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("fd-theme", theme);
+    localStorage.setItem("fd-theme-v2", theme);
   }, [theme]);
 
   useEffect(() => {
-    document.title = navItem.label + " · FlightDeck EFB";
+    document.title = navItem.label + " · FlyTech";
   }, [navItem.label]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPage(pageFromLocation());
+      setMobileMenu(false);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -321,6 +358,8 @@ function App() {
   }, [checkState]);
 
   const navigate = id => {
+    const target = PAGE_PATHS[id] || "/";
+    if (window.location.pathname !== target) window.history.pushState({ page: id }, "", target);
     setPage(id);
     setMobileMenu(false);
     setToast(null);
@@ -477,7 +516,7 @@ function App() {
     <aside className="sidebar">
       <div className="brand-row">
         <div className="brand-mark"><Plane size={21} fill="currentColor" strokeWidth={1.5} /></div>
-        <div className="brand-type"><strong>FLIGHTDECK</strong><span>ELECTRONIC FLIGHT BAG</span></div>
+        <div className="brand-type"><strong>FLYTECH</strong><span>FLIGHT SIMULATION SUITE</span></div>
         <IconButton icon={X} label="Close navigation" onClick={() => setMobileMenu(false)} variant="sidebar-close" />
       </div>
       <div className="profile-strip">
@@ -506,7 +545,7 @@ function App() {
       <header className="topbar">
         <div className="topbar-left">
           <IconButton icon={Menu} label="Open navigation" onClick={() => setMobileMenu(true)} variant="mobile-menu-button" />
-          <div className="breadcrumb"><span>FLIGHTDECK</span><ChevronRight size={13} /><strong>{navItem.label}</strong></div>
+          <div className="breadcrumb"><span>FLYTECH</span><ChevronRight size={13} /><strong>{navItem.label}</strong></div>
         </div>
         <div className="topbar-actions">
           <label className="aircraft-switch"><Plane size={15} /><select aria-label="Selected aircraft" value={aircraft} onChange={event => updateAircraft(event.target.value)}>{AIRCRAFT.map(item => <option key={item.icao} value={item.icao}>{item.icao} · {item.name}</option>)}</select><ChevronDown size={14} /></label>
@@ -581,10 +620,10 @@ function Dashboard({ user, health, aircraft, latestPlan, lastFlight, plans, flig
           <div className="welcome-flight-copy">
             <div className="eyebrow">YOUR FLIGHT DESK</div>
             <h2>{latestPlan ? "Ready for " + (latestPlan.dep || "departure") + " → " + (latestPlan.arr || "arrival") : "Plan the next flight."}</h2>
-            <p>{latestPlan ? "Your most recent dispatch is saved in your cloud library. Open it to review the plan before loading your simulator." : "Bring your SimBrief dispatch into FlightDeck and keep the plan, weather and flight notes together."}</p>
+            <p>{latestPlan ? "Your most recent dispatch is saved in your cloud library. Open it to review the plan before loading your simulator." : "Bring your SimBrief dispatch into FlyTech and keep the plan, weather and flight notes together."}</p>
             <div className="hero-actions"><button className="button-primary" onClick={() => navigate("dispatch")}><Route size={16} /> {latestPlan ? "Open flight planning" : "Import a flight plan"} <ArrowRight size={15} /></button><button className="button-secondary" onClick={() => navigate("checklists")}><ClipboardCheck size={16} /> Checklists</button></div>
           </div>
-          <div className="flight-card-stamp"><div className="stamp-line">FLIGHTDECK</div><Plane size={46} strokeWidth={1.1} /><div className="stamp-code">{latestPlan?.flight_number || aircraft.icao}</div><div className="stamp-caption">{latestPlan ? (latestPlan.dep || "----") + " / " + (latestPlan.arr || "----") : aircraft.name}</div></div>
+          <div className="flight-card-stamp"><div className="stamp-line">FLYTECH</div><Plane size={46} strokeWidth={1.1} /><div className="stamp-code">{latestPlan?.flight_number || aircraft.icao}</div><div className="stamp-caption">{latestPlan ? (latestPlan.dep || "----") + " / " + (latestPlan.arr || "----") : aircraft.name}</div></div>
         </section>
 
         <Panel title="Route overview" subtitle={latestPlan ? "Saved dispatch · Great-circle line between airport coordinates" : "Your most recent dispatch will appear here"} action={<button className="text-action" onClick={() => navigate("dispatch")}>Flight planning <ArrowRight size={14} /></button>} className="route-panel">
@@ -603,7 +642,7 @@ function Dashboard({ user, health, aircraft, latestPlan, lastFlight, plans, flig
             <div className="telemetry-head"><div><span>Aircraft altitude</span><strong>{formatNumber(telemetry.data.altitudeFt)} <small>ft</small></strong></div><div className="telemetry-aircraft"><Plane size={24} /><small>{telemetry.data.title || aircraft.icao}</small></div></div>
             <div className="telemetry-grid"><div><span>Indicated airspeed</span><strong>{formatNumber(telemetry.data.iasKt)} <small>kt</small></strong></div><div><span>Ground speed</span><strong>{formatNumber(telemetry.data.groundSpeedKt)} <small>kt</small></strong></div><div><span>Vertical speed</span><strong>{formatNumber(telemetry.data.verticalSpeedFpm)} <small>fpm</small></strong></div><div><span>Heading</span><strong>{formatNumber(telemetry.data.headingDeg)}<small>°</small></strong></div></div>
             <div className="telemetry-footer"><span><CircleDot size={12} /> Updated {telemetryAge !== null ? telemetryAge + "s ago" : "recently"}</span><button className="text-action" onClick={() => navigate("integrations")}>Bridge status</button></div>
-          </div> : <div className="telemetry-offline"><div className="telemetry-offline-icon"><Activity size={23} /></div><strong>No simulator data received</strong><p>Start the FlightDeck companion on the same PC as MSFS 2024, then pair it to your account.</p><button className="button-secondary full" onClick={() => navigate("settings")}>Set up MSFS connection <ArrowRight size={14} /></button>{telemetryError && <small className="subtle-note">{telemetryError}</small>}</div>}
+          </div> : <div className="telemetry-offline"><div className="telemetry-offline-icon"><Activity size={23} /></div><strong>No simulator data received</strong><p>Start the FlyTech companion on the same PC as MSFS 2024, then pair it to your account.</p><button className="button-secondary full" onClick={() => navigate("settings")}>Set up MSFS connection <ArrowRight size={14} /></button>{telemetryError && <small className="subtle-note">{telemetryError}</small>}</div>}
         </Panel>
 
         <Panel title="Weather quick-look" subtitle="Latest aviation weather report">
@@ -668,10 +707,10 @@ function Dispatch({ user, plans, savePlan, removePlan, loading, navigate }) {
     } catch {}
   };
   return <>
-    <SectionHeading eyebrow="DISPATCH & FLIGHT PLANNING" title="Flight planning" subtitle="Import your SimBrief dispatch, review the key figures and keep a saved copy in your FlightDeck account." action={<Pill tone={user ? "green" : "amber"}>{user ? "Cloud library enabled" : "Sign in to save"}</Pill>} />
+    <SectionHeading eyebrow="DISPATCH & FLIGHT PLANNING" title="Flight planning" subtitle="Import your SimBrief dispatch, review the key figures and keep a saved copy in your FlyTech account." action={<Pill tone={user ? "green" : "amber"}>{user ? "Cloud library enabled" : "Sign in to save"}</Pill>} />
     <div className="dispatch-layout">
       <div className="dispatch-main">
-        <Panel title="Import a dispatch" subtitle="Uses SimBrief's published latest-OFP endpoint. FlightDeck does not generate a new SimBrief OFP itself.">
+        <Panel title="Import a dispatch" subtitle="Uses SimBrief's published latest-OFP endpoint. FlyTech does not generate a new SimBrief OFP itself.">
           <form className="dispatch-form" onSubmit={loadPlan}>
             <Field label="SimBrief Pilot ID or username" hint="Use the Pilot ID shown in SimBrief account settings, or your public username."><input value={identifier} onChange={event => setIdentifier(event.target.value)} placeholder="e.g. 123456 or pilotname" autoComplete="off" /></Field>
             <Field label="Identifier type"><select value={identifierType} onChange={event => setIdentifierType(event.target.value)}><option value="userid">Pilot ID</option><option value="username">Username</option></select></Field>
@@ -704,7 +743,7 @@ function Dispatch({ user, plans, savePlan, removePlan, loading, navigate }) {
           {plans.length ? <div className="saved-plan-list">{plans.map(item => <div className="saved-plan" key={item.id}><button className="saved-plan-open" onClick={() => loadSaved(item)}><span className="saved-plan-mark"><Route size={17} /></span><span className="saved-plan-detail"><strong>{item.flight_number || item.title || "Flight plan"}</strong><small>{item.dep || "----"} <ArrowRight size={11} /> {item.arr || "----"}</small><em>{formatDate(item.flight_date || item.created_at)}</em></span><ChevronRight size={15} /></button><button className="saved-plan-delete" onClick={() => { if (window.confirm("Delete this saved flight plan?")) removePlan(item.id); }} title="Delete flight plan" aria-label="Delete flight plan"><Trash2 size={14} /></button></div>)}</div> : <EmptyState icon={FileText} title="No saved dispatches" text={user ? "Imported flight plans that you save will be available here." : "You can import a plan as a guest. Sign in to save it to your cloud library."} />}
         </Panel>
         <Panel title="Dispatch note" subtitle="Data provenance">
-          <div className="provenance-note"><ShieldCheck size={18} /><p>FlightDeck only shows fields returned by the provider. Missing fields remain blank. Check the source OFP and your aircraft add-on before using any plan for a simulated flight.</p></div>
+          <div className="provenance-note"><ShieldCheck size={18} /><p>FlyTech only shows fields returned by the provider. Missing fields remain blank. Check the source OFP and your aircraft add-on before using any plan for a simulated flight.</p></div>
           <a className="source-link" href="https://www.simbrief.com/" target="_blank" rel="noreferrer">SimBrief website <ExternalLink size={13} /></a>
         </Panel>
       </aside>
@@ -734,7 +773,7 @@ function Airports({ airport, refreshAirport, loading }) {
       {airport.error ? <div className="notice notice-error"><AlertCircle size={17} /><span>{airport.error}</span></div> : <>
         <div className="airport-identity"><div className="airport-code-large">{airport.icao || airport.id || icao}</div><div><div className="eyebrow">{airport.country || airport.state || "AIRPORT"}</div><h2>{airport.name || "Airport details"}</h2><p>{airport.municipality || airport.city || airport.location || "Location not supplied by the data provider"}</p></div><Pill tone="green">Provider data</Pill></div>
         <div className="airport-facts"><Fact label="ICAO" value={airport.icao || airport.id || icao} /><Fact label="IATA" value={airport.iata || airport.iata_code || "Not provided"} /><Fact label="Elevation" value={airport.elevationFt !== null && airport.elevationFt !== undefined && Number.isFinite(Number(airport.elevationFt)) ? formatNumber(airport.elevationFt) + " ft" : airport.elevation !== null && airport.elevation !== undefined && Number.isFinite(Number(airport.elevation)) ? formatNumber(airport.elevation) + " ft" : "Not provided"} /><Fact label="Coordinates" value={airport.lat !== null && airport.lat !== undefined && airport.lon !== null && airport.lon !== undefined && Number.isFinite(Number(airport.lat)) && Number.isFinite(Number(airport.lon)) ? Number(airport.lat).toFixed(4) + ", " + Number(airport.lon).toFixed(4) : "Not provided"} /></div>
-        <div className="airport-detail-grid"><Panel title="Runways" subtitle="AirportDB enrichment when configured">{airport.runways?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Ident</th><th>Length</th><th>Surface</th></tr></thead><tbody>{airport.runways.map((r, i) => <tr key={r.id || i}><td className="strong-cell">{r.le_ident || r.ident || r.name || "—"}{r.he_ident ? " / " + r.he_ident : ""}</td><td>{r.length_ft ? formatNumber(r.length_ft) + " ft" : "—"}</td><td>{r.surface || "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Map} title="Runway detail unavailable" text="Runway and frequency data are only shown when the configured airport data provider returns them. FlightDeck will not fill gaps with guessed values." />}</Panel><Panel title="Frequencies" subtitle="Provider-supplied radio data">{airport.frequencies?.length ? <div className="frequency-list">{airport.frequencies.map((f, i) => <div key={f.id || i}><span>{f.type || f.description || "Frequency"}</span><strong>{f.frequency_mhz || f.frequency || "—"}</strong><small>{f.name || ""}</small></div>)}</div> : <EmptyState icon={Radio} title="No frequencies supplied" text="This data provider did not return frequency information for the selected airport." />}</Panel></div>
+        <div className="airport-detail-grid"><Panel title="Runways" subtitle="AirportDB enrichment when configured">{airport.runways?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Ident</th><th>Length</th><th>Surface</th></tr></thead><tbody>{airport.runways.map((r, i) => <tr key={r.id || i}><td className="strong-cell">{r.le_ident || r.ident || r.name || "—"}{r.he_ident ? " / " + r.he_ident : ""}</td><td>{r.length_ft ? formatNumber(r.length_ft) + " ft" : "—"}</td><td>{r.surface || "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Map} title="Runway detail unavailable" text="Runway and frequency data are only shown when the configured airport data provider returns them. FlyTech will not fill gaps with guessed values." />}</Panel><Panel title="Frequencies" subtitle="Provider-supplied radio data">{airport.frequencies?.length ? <div className="frequency-list">{airport.frequencies.map((f, i) => <div key={f.id || i}><span>{f.type || f.description || "Frequency"}</span><strong>{f.frequency_mhz || f.frequency || "—"}</strong><small>{f.name || ""}</small></div>)}</div> : <EmptyState icon={Radio} title="No frequencies supplied" text="This data provider did not return frequency information for the selected airport." />}</Panel></div>
         <div className="source-caption"><ShieldCheck size={14} />Source: {airport.source || "airport data provider"}{airport.updatedAt ? " · retrieved " + new Date(airport.updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}</div>
       </>}
     </div>}
@@ -769,7 +808,7 @@ function Weather({ weather, refreshWeather, loading }) {
         <Panel title="METAR observation" subtitle={result.metar?.observationTime ? "Observation time " + new Date(result.metar.observationTime).toLocaleString("en-GB") : "Latest available station report"}><div className="weather-report"><div className="weather-report-icon"><Wind size={22} /></div><p>{result.metar?.raw || result.metar?.rawOb || result.metar?.raw_text || "The provider returned no current METAR for this station."}</p></div><div className="weather-subfacts"><Fact label="Wind" value={result.metar?.wind || "See raw report"} /><Fact label="Visibility" value={result.metar?.visibility || "See raw report"} /><Fact label="Temperature" value={result.metar?.temperature !== undefined && result.metar?.temperature !== null ? result.metar.temperature + "°C" : "See raw report"} /><Fact label="Altimeter" value={result.metar?.altimeter || "See raw report"} /></div></Panel>
         <Panel title="Terminal forecast (TAF)" subtitle="Forecast validity depends on the report issued by the provider"><div className="weather-report"><div className="weather-report-icon forecast"><CloudSun size={22} /></div><p>{result.taf?.raw || result.taf?.rawTAF || result.taf?.raw_text || "The provider returned no TAF for this station."}</p></div><div className="notice notice-info"><AlertCircle size={15} /><span>METARs are observations; TAFs are forecasts. Check report issue times and validity periods before relying on them in your simulation.</span></div></Panel>
       </div>
-    </> : <EmptyState icon={CloudSun} title="No weather loaded" text="Search an ICAO code to fetch a current report. FlightDeck does not fabricate missing observations or forecasts." />}
+    </> : <EmptyState icon={CloudSun} title="No weather loaded" text="Search an ICAO code to fetch a current report. FlyTech does not fabricate missing observations or forecasts." />}
     <div className="source-caption"><ShieldCheck size={14} />Public aviation data via Aviation Weather Center. Subject to upstream availability and rate limits.</div>
   </>;
 }
@@ -781,7 +820,7 @@ function Traffic({ traffic, refreshTraffic, loading }) {
   const controllers = traffic?.controllers || [];
   const matching = pilots.filter(item => [item.callsign, item.name, item.flight_plan?.departure, item.flight_plan?.arrival, item.flight_plan?.aircraft].join(" ").toLowerCase().includes(filter.toLowerCase()));
   return <>
-    <SectionHeading eyebrow="ONLINE NETWORK" title="Live network" subtitle="Public VATSIM network data, retrieved directly through the FlightDeck server." action={<button className="button-secondary" onClick={refreshTraffic} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh feed</button>} />
+    <SectionHeading eyebrow="ONLINE NETWORK" title="Live network" subtitle="Public VATSIM network data, retrieved directly through the FlyTech server." action={<button className="button-secondary" onClick={refreshTraffic} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh feed</button>} />
     {traffic?.update_timestamp && <div className="weather-meta-row"><span><span className="source-indicator" />VATSIM public data feed</span><span>Feed timestamp {new Date(traffic.update_timestamp).toLocaleString("en-GB")}</span><Pill tone="green">Live source</Pill></div>}
     {traffic?.error && <div className="notice notice-error"><AlertCircle size={17} />{traffic.error}</div>}
     <div className="network-summary"><div><span>Logged-on pilots</span><strong>{formatNumber(pilots.length)}</strong><small>Current provider response</small></div><div><span>Controllers</span><strong>{formatNumber(controllers.length)}</strong><small>Current provider response</small></div><div><span>Flight plans</span><strong>{formatNumber(pilots.filter(p => p.flight_plan).length)}</strong><small>Pilots with a flight plan</small></div><div><span>Feed status</span><strong className="network-feed-status">{traffic ? "Retrieved" : "Not loaded"}</strong><small>{traffic ? "Actual data, not a simulated counter" : "Fetch the current feed to begin"}</small></div></div>
@@ -864,7 +903,7 @@ function Tools() {
         {km !== null && (typeof km === "object" ? <div className="inline-error">{km.error}</div> : <div className="large-calculation"><span>Equivalent distance</span><strong>{formatNumber(km, 2)} km</strong><small>1 nautical mile = 1.852 kilometres.</small></div>)}
       </Panel>
       <Panel title="Calculator policy" subtitle="How to interpret results">
-        <div className="provenance-note"><ShieldCheck size={19} /><p>FlightDeck shows the calculation and the assumptions beside the result. These tools do not validate take-off/landing performance, fuel reserves, alternate requirements, or certified operational limits. Use the documentation for your specific add-on and the rules of your simulation network.</p></div>
+        <div className="provenance-note"><ShieldCheck size={19} /><p>FlyTech shows the calculation and the assumptions beside the result. These tools do not validate take-off/landing performance, fuel reserves, alternate requirements, or certified operational limits. Use the documentation for your specific add-on and the rules of your simulation network.</p></div>
       </Panel>
     </div>
   </>;
@@ -891,7 +930,7 @@ function Checklists({ aircraft, state, onChange, user }) {
           <div className="checklist-items">{checklist.map((item, index) => <label key={item} className={"checklist-item " + (checked[index] ? "done" : "")}><input type="checkbox" checked={!!checked[index]} onChange={() => toggle(index)} /><span className="custom-check">{checked[index] && <Check size={14} />}</span><span className="checklist-item-text">{item}</span><span className="item-state">{checked[index] ? "Checked" : "Pending"}</span></label>)}</div>
           <div className="panel-button-row"><button className="button-secondary" onClick={reset}><RefreshCw size={15} /> Reset this phase</button><button className="button-primary" onClick={() => setPhase(Object.keys(CHECKLISTS)[(Object.keys(CHECKLISTS).indexOf(phase) + 1) % Object.keys(CHECKLISTS).length])}>Next phase <ArrowRight size={15} /></button></div>
         </Panel>
-        <div className="notice notice-info"><AlertCircle size={16} /><span>Use the aircraft add-on's actual checklist for aircraft-specific procedure items. FlightDeck's general list is a personal workflow aid only.</span></div>
+        <div className="notice notice-info"><AlertCircle size={16} /><span>Use the aircraft add-on's actual checklist for aircraft-specific procedure items. FlyTech's general list is a personal workflow aid only.</span></div>
       </div>
     </div>
   </>;
@@ -963,15 +1002,15 @@ function Integrations({ status, error, onRefresh, navigate }) {
   const toneFor = state => state === "available" || state === "configured" ? "green" : state === "needs-setup" ? "amber" : "muted";
   return <>
     <SectionHeading eyebrow="EXTERNAL SERVICES" title="Connections" subtitle="A transparent view of available data providers, optional services and local simulator requirements." action={<button className="button-secondary" onClick={onRefresh}><RefreshCw size={15} /> Refresh status</button>} />
-    <div className="integration-callout"><div className="integration-callout-icon"><ShieldCheck size={20} /></div><div><strong>No hidden connected accounts</strong><p>FlightDeck shows a service as connected only when it is actually configured or has returned data. Optional integrations remain clearly marked until they are set up.</p></div></div>
+    <div className="integration-callout"><div className="integration-callout-icon"><ShieldCheck size={20} /></div><div><strong>No hidden connected accounts</strong><p>FlyTech shows a service as connected only when it is actually configured or has returned data. Optional integrations remain clearly marked until they are set up.</p></div></div>
     {error && <div className="notice notice-error"><AlertCircle size={16} />{error}</div>}
-    <div className="integration-grid">{items.map(item => { const Icon = IconFor(item.name); return <article className="integration-card" key={item.name}><div className="integration-card-top"><div className="integration-icon"><Icon size={20} /></div><Pill tone={toneFor(item.status)}>{item.label || titleCase(item.status)}</Pill></div><h2>{item.name}</h2><p>{item.description}</p>{item.detail && <small>{item.detail}</small>}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="source-link">Provider documentation <ExternalLink size={13} /></a>}{item.name === "MSFS 2024" && <button className="text-action" onClick={() => navigate("settings")}>Set up companion <ArrowRight size={14} /></button>}</article>; })}</div>
-    {!items.length && !error && <EmptyState icon={Plug} title="Loading connection status" text="FlightDeck is checking server configuration and provider availability." />}
+    <div className="integration-grid">{items.map(item => { const Icon = IconFor(item.name); return <article className="integration-card" key={item.name}><div className="integration-card-top"><div className="integration-icon"><Icon size={20} /></div><Pill tone={toneFor(item.status)}>{item.label || titleCase(item.status)}</Pill></div><h2>{item.name}</h2><p>{item.description}</p>{item.detail && <small>{item.detail}</small>}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="source-link">Provider documentation <ExternalLink size={13} /></a>}{item.name === "MSFS 2024" && <button className="text-action" onClick={() => navigate("simulator")}>Open setup guide <ArrowRight size={14} /></button>}</article>; })}</div>
+    {!items.length && !error && <EmptyState icon={Plug} title="Loading connection status" text="FlyTech is checking server configuration and provider availability." />}
     <div className="integration-disclaimer"><LockKeyhole size={16} /><span>API tokens remain on the server. Never put provider secrets in frontend environment variables or public JavaScript files.</span></div>
   </>;
 }
 
-function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAircraft, signOut, pairingCode, generatePairingCode, health }) {
+function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAircraft, signOut, pairingCode, generatePairingCode, health, navigate }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -1009,7 +1048,7 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
             <div className="auth-mode"><button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setAuthError(""); }}>Sign in</button><button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setAuthError(""); }}>Create account</button></div>
             {mode === "register" && <Field label="Display name"><input value={displayName} onChange={event => setDisplayName(event.target.value)} placeholder="How other pilots see you" maxLength={60} /></Field>}
             <Field label="Username"><input value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" required minLength={3} maxLength={24} placeholder="Your username" /></Field>
-            {mode === "register" && <Field label="Email address" hint="Used for account identification. Password recovery is not enabled yet."><input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" /></Field>}
+            {mode === "register" && <Field label="Email address" hint="Required for your welcome email. Password recovery is not enabled yet."><input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required /></Field>}
             <Field label="Password" hint={mode === "register" ? "Use at least 8 characters." : undefined}><div className="password-field"><input type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(value => !value)}>{showPassword ? <LockKeyhole size={15} /> : <UserRound size={15} />}</button></div></Field>
             {authError && <div className="notice notice-error"><AlertCircle size={16} /><span>{authError}</span></div>}
             <button className="button-primary full" type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : mode === "login" ? <><LogIn size={16} /> Sign in securely</> : <><UserRound size={16} /> Create your account</>}</button>
@@ -1017,11 +1056,11 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
           </form>}
         </Panel>
 
-        <Panel title="Microsoft Flight Simulator 2024" subtitle="Connect the desktop simulator to this cloud EFB so your phone can receive live telemetry.">
-          <div className="bridge-summary"><div className="bridge-icon"><Activity size={21} /></div><div><strong>{health?.database ? "Pairing service available" : "Cloud database required"}</strong><p>A small Windows companion uses the official SimConnect SDK to read simulator variables and sends them to your signed-in FlightDeck account. A phone browser cannot read the simulator process directly.</p></div><Pill tone={health?.database && user ? "green" : "amber"}>{user ? (health?.database ? "READY TO PAIR" : "SETUP REQUIRED") : "SIGN IN FIRST"}</Pill></div>
-          {user ? <div className="pairing-area"><div className="pairing-instructions"><strong>1. Create a one-time pairing code</strong><p>Open this page on the device where you are signed in, generate a code, then enter it in the Windows companion running on the PC with MSFS 2024.</p><button className="button-primary" onClick={generatePairingCode} disabled={!health?.database}><Zap size={15} /> Generate pairing code</button></div>{pairingCode && <div className="pairing-code-box"><span>ONE-TIME CODE</span><strong>{pairingCode.code}</strong><small>Expires {pairingCode.expiresAt ? new Date(pairingCode.expiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "soon"} · use once</small><button className="button-secondary" onClick={copyPairingCode}>Copy code</button></div>}</div> : <div className="notice notice-info"><LockKeyhole size={16} /><span>Sign in to create a pairing code. The companion is per-user and does not expose your session cookie to the local application.</span></div>}
+        <Panel title="Microsoft Flight Simulator 2024" subtitle="Connect the desktop simulator to FlyTech so your other devices can receive live telemetry.">
+          <div className="bridge-summary"><div className="bridge-icon"><Activity size={21} /></div><div><strong>{health?.database ? "Pairing service available" : "Cloud database required"}</strong><p>The Windows companion uses Microsoft SimConnect on the same PC as the simulator. It sends a limited live telemetry snapshot to your signed-in FlyTech account; a phone browser cannot read the simulator process directly.</p></div><Pill tone={health?.database && user ? "green" : "amber"}>{user ? (health?.database ? "READY TO PAIR" : "SETUP REQUIRED") : "SIGN IN FIRST"}</Pill></div>
+          {user ? <div className="pairing-area"><div className="pairing-instructions"><strong>1. Create a one-time pairing code</strong><p>Open this page on the device where you are signed in, generate a code, then enter it in the Windows companion running on the PC with MSFS 2024.</p><button className="button-primary" onClick={generatePairingCode} disabled={!health?.database}><Zap size={15} /> Generate pairing code</button></div>{pairingCode && <div className="pairing-code-box"><span>ONE-TIME CODE</span><strong>{pairingCode.code}</strong><small>Expires {pairingCode.expiresAt ? new Date(pairingCode.expiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "soon"} · use once</small><button className="button-secondary" onClick={copyPairingCode}>Copy code</button></div>}</div> : <div className="notice notice-info"><LockKeyhole size={16} /><span>Sign in to create a pairing code. Pairing is specific to your account. The companion receives its own revocable token and never receives your browser session cookie.</span></div>}
           <div className="bridge-next-steps"><span>2</span><p><strong>Install the companion</strong><br />The Windows companion requires the Microsoft Flight Simulator 2024 SDK's managed SimConnect library. Build instructions are included in the repository under <code>companion/msfs-bridge</code>.</p></div>
-          <div className="bridge-next-steps"><span>3</span><p><strong>Keep the companion running</strong><br />With MSFS open and a flight loaded, the companion sends current position, altitude, airspeed, groundspeed, heading and vertical speed to FlightDeck. The panel above will change when data is actually received.</p></div>
+          <div className="bridge-next-steps"><span>3</span><p><strong>Keep the companion running</strong><br />With MSFS open and a flight loaded, the companion sends current position, altitude, airspeed, groundspeed, heading and vertical speed to FlyTech. The panel above will change when data is actually received.</p></div>
         </Panel>
 
         <Panel title="Data and privacy" subtitle="Understand what syncs and where it is stored">

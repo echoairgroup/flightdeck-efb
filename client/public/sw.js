@@ -1,4 +1,4 @@
-const CACHE = "flightdeck-shell-v1";
+const CACHE = "flytech-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", event => {
@@ -8,7 +8,7 @@ self.addEventListener("install", event => {
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(key => key.startsWith("flightdeck-shell-") && key !== CACHE).map(key => caches.delete(key))
+      keys.filter(key => (key.startsWith("flightdeck-shell-") || key.startsWith("flytech-shell-")) && key !== CACHE).map(key => caches.delete(key))
     )).then(() => self.clients.claim())
   );
 });

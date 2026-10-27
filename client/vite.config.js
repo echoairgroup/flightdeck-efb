@@ -2,7 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
+const githubPages = process.env.VITE_GITHUB_PAGES === "true";
+
 export default defineConfig({
+  base: githubPages ? (process.env.VITE_BASE_PATH || "/flightdeck-efb/") : "/",
   root: resolve(process.cwd(), "client"),
   plugins: [react()],
   build: {

@@ -539,6 +539,211 @@ app.post("/api/bridge/revoke", auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+const eventLimiter = rateLimit({ windowMs: 60 * 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, message: { error: "Too many event submissions. Try again later." } });
+const validRecordId = value => /^\d{1,18}$/.test(String(value || ""));
+async function airlineManager(airlineId, userId) {
+  const result = await query("SELECT role FROM airline_members WHERE airline_id=$1 AND user_id=$2 AND role IN ('owner','admin') LIMIT 1", [airlineId, userId]);
+  return result.rows[0] || null;
+}
+
+app.get("/api/airlines", async (req, res) => {
+  if (!pool) return res.status(503).json({ error: "Cloud database is not configured; public airline listings are unavailable." });
+  const result = await query(
+    "SELECT a.id,a.name,a.slug,a.icao_code,a.iata_code,a.callsign,a.base_icao,a.description,a.website_url,a.created_at, " +
+    "COUNT(DISTINCT m.user_id)::int AS member_count, COUNT(DISTINCT f.id)::int AS fleet_count, " +
+    "COUNT(DISTINCT r.id) FILTER (WHERE r.active)::int AS route_count " +
+    "FROM airlines a LEFT JOIN airline_members m ON m.airline_id=a.id " +
+    "LEFT JOIN airline_fleet f ON f.airline_id=a.id LEFT JOIN airline_routes r ON r.airline_id=a.id " +
+    "GROUP BY a.id ORDER BY a.name ASC LIMIT 100"
+  );
+  res.json({ airlines: result.rows });
+});
+
+app.get("/api/airlines/mine", auth, async (req, res) => {
+  const result = await query(
+    "SELECT a.id,a.name,a.slug,a.icao_code,a.iata_code,a.callsign,a.base_icao,a.description,a.website_url,a.created_at,m.role AS my_role, " +
+    "(SELECT COUNT(*)::int FROM airline_members m2 WHERE m2.airline_id=a.id) AS member_count " +
+    "FROM airline_members m JOIN airlines a ON a.id=m.airline_id WHERE m.user_id=$1 ORDER BY a.name ASC",
+    [req.user.id]
+  );
+  res.json({ airlines: result.rows });
+});
+
+app.post("/api/airlines", auth, async (req, res) => {
+  const name = cleanString(req.body?.name, 80);
+  const slug = cleanString(req.body?.slug || name, 80).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+  const icaoCode = cleanString(req.body?.icao_code, 3).toUpperCase() || null;
+  const iataCode = cleanString(req.body?.iata_code, 2).toUpperCase() || null;
+  const callsign = cleanString(req.body?.callsign, 32) || null;
+  const baseIcao = cleanString(req.body?.base_icao, 4).toUpperCase() || null;
+  const description = cleanString(req.body?.description, 2000);
+  const website = cleanString(req.body?.website_url, 300) || null;
+  if (name.length < 3) return res.status(400).json({ error: "Airline name must be at least three characters." });
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3) return res.status(400).json({ error: "Use a URL-safe slug with letters, numbers and hyphens." });
+  if (icaoCode && !/^[A-Z0-9]{3}$/.test(icaoCode)) return res.status(400).json({ error: "An airline ICAO designator must be three letters or digits." });
+  if (iataCode && !/^[A-Z0-9]{2}$/.test(iataCode)) return res.status(400).json({ error: "An airline IATA designator must be two letters or digits." });
+  if (baseIcao && !validIcao(baseIcao)) return res.status(400).json({ error: "Base airport must be a four-character ICAO code." });
+  if (website) {
+    try {
+      const parsed = new URL(website);
+      if (parsed.protocol !== "https:") throw new Error("invalid protocol");
+    } catch { return res.status(400).json({ error: "Website URL must be a valid HTTPS address." }); }
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const inserted = await client.query(
+      "INSERT INTO airlines(name,slug,icao_code,iata_code,callsign,base_icao,description,website_url,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+      [name, slug, icaoCode, iataCode, callsign, baseIcao, description, website, req.user.id]
+    );
+    await client.query("INSERT INTO airline_members(airline_id,user_id,role) VALUES($1,$2,'owner')", [inserted.rows[0].id, req.user.id]);
+    await client.query("COMMIT");
+    res.status(201).json({ airline: inserted.rows[0] });
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch {}
+    if (error.code === "23505") return res.status(409).json({ error: "That airline slug or ICAO designator is already registered." });
+    console.error("Airline creation failed:", error.message);
+    res.status(503).json({ error: "Could not create the airline. Check database availability and try again." });
+  } finally { client.release(); }
+});
+
+app.get("/api/airlines/:id", async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid airline ID." });
+  const id = req.params.id;
+  const result = await query(
+    "SELECT a.*, (SELECT COUNT(*)::int FROM airline_members m WHERE m.airline_id=a.id) AS member_count, " +
+    "(SELECT COUNT(*)::int FROM airline_fleet f WHERE f.airline_id=a.id) AS fleet_count, " +
+    "(SELECT COUNT(*)::int FROM airline_routes r WHERE r.airline_id=a.id AND r.active=TRUE) AS route_count FROM airlines a WHERE a.id=$1 LIMIT 1",
+    [id]
+  );
+  if (!result.rows[0]) return res.status(404).json({ error: "Airline not found." });
+  const [members, fleet, routes] = await Promise.all([
+    query("SELECT u.id,u.username,u.display_name,m.role,m.joined_at FROM airline_members m JOIN users u ON u.id=m.user_id WHERE m.airline_id=$1 ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,m.joined_at ASC LIMIT 250", [id]),
+    query("SELECT id,aircraft_icao,aircraft_name,registration,notes,created_at FROM airline_fleet WHERE airline_id=$1 ORDER BY aircraft_icao,registration", [id]),
+    query("SELECT id,flight_number,dep,arr,aircraft_icao,active,created_at FROM airline_routes WHERE airline_id=$1 ORDER BY active DESC,dep,arr LIMIT 500", [id])
+  ]);
+  res.json({ airline: result.rows[0], members: members.rows, fleet: fleet.rows, routes: routes.rows });
+});
+
+app.post("/api/airlines/:id/join", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid airline ID." });
+  const exists = await query("SELECT id FROM airlines WHERE id=$1", [req.params.id]);
+  if (!exists.rowCount) return res.status(404).json({ error: "Airline not found." });
+  const result = await query("INSERT INTO airline_members(airline_id,user_id,role) VALUES($1,$2,'pilot') ON CONFLICT DO NOTHING RETURNING airline_id", [req.params.id, req.user.id]);
+  if (!result.rowCount) return res.status(409).json({ error: "You are already a member of this airline." });
+  res.status(201).json({ ok: true, role: "pilot" });
+});
+
+app.delete("/api/airlines/:id/membership", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid airline ID." });
+  const current = await query("SELECT role FROM airline_members WHERE airline_id=$1 AND user_id=$2", [req.params.id, req.user.id]);
+  if (!current.rowCount) return res.status(404).json({ error: "You are not a member of this airline." });
+  if (current.rows[0].role === "owner") return res.status(409).json({ error: "The airline owner cannot leave until ownership transfer is supported." });
+  await query("DELETE FROM airline_members WHERE airline_id=$1 AND user_id=$2", [req.params.id, req.user.id]);
+  res.json({ ok: true });
+});
+
+app.post("/api/airlines/:id/fleet", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid airline ID." });
+  if (!await airlineManager(req.params.id, req.user.id)) return res.status(403).json({ error: "Only airline owners and admins can manage the fleet." });
+  const type = cleanString(req.body?.aircraft_icao, 5).toUpperCase();
+  const name = cleanString(req.body?.aircraft_name, 100) || null;
+  const registration = cleanString(req.body?.registration, 24).toUpperCase() || null;
+  const notes = cleanString(req.body?.notes, 500);
+  if (!/^[A-Z0-9]{3,5}$/.test(type)) return res.status(400).json({ error: "Enter a valid three-to-five-character aircraft type code." });
+  const result = await query("INSERT INTO airline_fleet(airline_id,aircraft_icao,aircraft_name,registration,notes,created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING *", [req.params.id,type,name,registration,notes,req.user.id]);
+  res.status(201).json({ aircraft: result.rows[0] });
+});
+app.delete("/api/airlines/:id/fleet/:fleetId", auth, async (req, res) => {
+  if (!validRecordId(req.params.id) || !validRecordId(req.params.fleetId)) return res.status(400).json({ error: "Invalid record ID." });
+  if (!await airlineManager(req.params.id, req.user.id)) return res.status(403).json({ error: "Only airline owners and admins can manage the fleet." });
+  const result = await query("DELETE FROM airline_fleet WHERE id=$1 AND airline_id=$2 RETURNING id", [req.params.fleetId,req.params.id]);
+  if (!result.rowCount) return res.status(404).json({ error: "Aircraft record not found." });
+  res.json({ ok: true });
+});
+
+app.post("/api/airlines/:id/routes", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid airline ID." });
+  if (!await airlineManager(req.params.id, req.user.id)) return res.status(403).json({ error: "Only airline owners and admins can manage routes." });
+  const dep = cleanString(req.body?.dep, 4).toUpperCase();
+  const arr = cleanString(req.body?.arr, 4).toUpperCase();
+  const flightNumber = cleanString(req.body?.flight_number, 30) || null;
+  const aircraft = cleanString(req.body?.aircraft_icao, 5).toUpperCase() || null;
+  if (!validIcao(dep) || !validIcao(arr)) return res.status(400).json({ error: "Departure and arrival must be four-character ICAO codes." });
+  if (dep === arr) return res.status(400).json({ error: "Departure and arrival must be different airports." });
+  if (aircraft && !/^[A-Z0-9]{3,5}$/.test(aircraft)) return res.status(400).json({ error: "Aircraft type code is invalid." });
+  const result = await query("INSERT INTO airline_routes(airline_id,flight_number,dep,arr,aircraft_icao,created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING *", [req.params.id,flightNumber,dep,arr,aircraft,req.user.id]);
+  res.status(201).json({ route: result.rows[0] });
+});
+app.delete("/api/airlines/:id/routes/:routeId", auth, async (req, res) => {
+  if (!validRecordId(req.params.id) || !validRecordId(req.params.routeId)) return res.status(400).json({ error: "Invalid record ID." });
+  if (!await airlineManager(req.params.id, req.user.id)) return res.status(403).json({ error: "Only airline owners and admins can manage routes." });
+  const result = await query("DELETE FROM airline_routes WHERE id=$1 AND airline_id=$2 RETURNING id", [req.params.routeId,req.params.id]);
+  if (!result.rowCount) return res.status(404).json({ error: "Route record not found." });
+  res.json({ ok: true });
+});
+
+app.get("/api/events", async (req, res) => {
+  if (!pool) return res.status(503).json({ error: "Cloud database is not configured; community events are unavailable." });
+  let viewerId = null;
+  try {
+    const token = req.cookies.fd_session;
+    if (token) viewerId = jwt.verify(token, SECRET, { issuer: "flightdeck-efb" }).id;
+  } catch {}
+  const result = await query(
+    "SELECT e.id,e.title,e.description,e.event_type,e.location,e.start_at,e.end_at,e.created_at,e.created_by, " +
+    "COALESCE(u.display_name,u.username) AS creator_name, " +
+    "COUNT(r.user_id) FILTER (WHERE r.status='going')::int AS going_count, " +
+    "COUNT(r.user_id) FILTER (WHERE r.status='interested')::int AS interested_count, mine.status AS my_rsvp " +
+    "FROM community_events e JOIN users u ON u.id=e.created_by LEFT JOIN event_rsvps r ON r.event_id=e.id " +
+    "LEFT JOIN event_rsvps mine ON mine.event_id=e.id AND mine.user_id=$1 " +
+    "WHERE e.end_at > NOW() - INTERVAL '30 days' " +
+    "GROUP BY e.id,u.username,u.display_name,mine.status " +
+    "ORDER BY CASE WHEN e.start_at >= NOW() THEN 0 ELSE 1 END,e.start_at ASC LIMIT 150",
+    [viewerId]
+  );
+  res.json({ events: result.rows });
+});
+
+app.post("/api/events", auth, eventLimiter, async (req, res) => {
+  const title = cleanString(req.body?.title, 100);
+  const description = cleanString(req.body?.description, 3000);
+  const location = cleanString(req.body?.location, 120);
+  const allowedTypes = ["group_flight","training","fly_in","community","other"];
+  const type = allowedTypes.includes(req.body?.event_type) ? req.body.event_type : "group_flight";
+  const startAt = new Date(req.body?.start_at);
+  const endAt = new Date(req.body?.end_at);
+  if (title.length < 4) return res.status(400).json({ error: "Event title must be at least four characters." });
+  if (!Number.isFinite(startAt.getTime()) || !Number.isFinite(endAt.getTime())) return res.status(400).json({ error: "Enter a valid start and end date." });
+  if (startAt.getTime() < Date.now() - 60000) return res.status(400).json({ error: "Event start time must be in the future." });
+  if (endAt <= startAt) return res.status(400).json({ error: "Event end time must be after its start time." });
+  if (endAt.getTime() - startAt.getTime() > 86400000) return res.status(400).json({ error: "Events are limited to 24 hours." });
+  const result = await query("INSERT INTO community_events(created_by,title,description,event_type,location,start_at,end_at) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+    [req.user.id,title,description,type,location,startAt.toISOString(),endAt.toISOString()]);
+  res.status(201).json({ event: result.rows[0] });
+});
+app.delete("/api/events/:id", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid event ID." });
+  const result = await query("DELETE FROM community_events WHERE id=$1 AND created_by=$2 RETURNING id", [req.params.id,req.user.id]);
+  if (!result.rowCount) return res.status(404).json({ error: "Event not found or you are not its organiser." });
+  res.json({ ok: true });
+});
+app.post("/api/events/:id/rsvp", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid event ID." });
+  const status = req.body?.status === "interested" ? "interested" : req.body?.status === "going" ? "going" : null;
+  if (!status) return res.status(400).json({ error: "RSVP status must be going or interested." });
+  const event = await query("SELECT id FROM community_events WHERE id=$1 AND end_at>NOW()", [req.params.id]);
+  if (!event.rowCount) return res.status(404).json({ error: "Event not found or already ended." });
+  await query("INSERT INTO event_rsvps(event_id,user_id,status) VALUES($1,$2,$3) ON CONFLICT(event_id,user_id) DO UPDATE SET status=EXCLUDED.status,created_at=NOW()", [req.params.id,req.user.id,status]);
+  res.json({ ok: true, status });
+});
+app.delete("/api/events/:id/rsvp", auth, async (req, res) => {
+  if (!validRecordId(req.params.id)) return res.status(400).json({ error: "Invalid event ID." });
+  const result = await query("DELETE FROM event_rsvps WHERE event_id=$1 AND user_id=$2 RETURNING event_id", [req.params.id,req.user.id]);
+  if (!result.rowCount) return res.status(404).json({ error: "You do not have an RSVP for this event." });
+  res.json({ ok: true });
+});
+
 app.use("/api", (req, res) => res.status(404).json({ error: "This API endpoint does not exist." }));
 app.use(express.static(path.join(root, "client", "dist"), { maxAge: production ? "1h" : 0, etag: true }));
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(root, "client", "dist", "index.html")));

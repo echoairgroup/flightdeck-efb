@@ -72,6 +72,50 @@ export async function initDb() {
     "device_id BIGINT REFERENCES bridge_devices(id) ON DELETE SET NULL, payload JSONB NOT NULL, " +
     "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
   );
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS airlines (" +
+    "id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, icao_code TEXT UNIQUE, iata_code TEXT, " +
+    "callsign TEXT, base_icao TEXT, description TEXT NOT NULL DEFAULT '', website_url TEXT, " +
+    "created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), " +
+    "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+  );
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS airline_members (" +
+    "airline_id BIGINT NOT NULL REFERENCES airlines(id) ON DELETE CASCADE, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, " +
+    "role TEXT NOT NULL DEFAULT 'pilot' CHECK (role IN ('owner','admin','pilot')), " +
+    "joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (airline_id,user_id))"
+  );
+  await pool.query("CREATE INDEX IF NOT EXISTS airline_members_user_idx ON airline_members(user_id,airline_id)");
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS airline_fleet (" +
+    "id BIGSERIAL PRIMARY KEY, airline_id BIGINT NOT NULL REFERENCES airlines(id) ON DELETE CASCADE, " +
+    "aircraft_icao TEXT NOT NULL, aircraft_name TEXT, registration TEXT, notes TEXT NOT NULL DEFAULT '', " +
+    "created_by BIGINT REFERENCES users(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+  );
+  await pool.query("CREATE INDEX IF NOT EXISTS airline_fleet_airline_idx ON airline_fleet(airline_id)");
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS airline_routes (" +
+    "id BIGSERIAL PRIMARY KEY, airline_id BIGINT NOT NULL REFERENCES airlines(id) ON DELETE CASCADE, " +
+    "flight_number TEXT, dep TEXT NOT NULL, arr TEXT NOT NULL, aircraft_icao TEXT, active BOOLEAN NOT NULL DEFAULT TRUE, " +
+    "created_by BIGINT REFERENCES users(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+  );
+  await pool.query("CREATE INDEX IF NOT EXISTS airline_routes_airline_idx ON airline_routes(airline_id,active)");
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS community_events (" +
+    "id BIGSERIAL PRIMARY KEY, created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, " +
+    "title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', event_type TEXT NOT NULL DEFAULT 'group_flight', " +
+    "location TEXT NOT NULL DEFAULT '', start_at TIMESTAMPTZ NOT NULL, end_at TIMESTAMPTZ NOT NULL, " +
+    "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+  );
+  await pool.query("CREATE INDEX IF NOT EXISTS community_events_start_idx ON community_events(start_at)");
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS event_rsvps (" +
+    "event_id BIGINT NOT NULL REFERENCES community_events(id) ON DELETE CASCADE, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, " +
+    "status TEXT NOT NULL CHECK (status IN ('going','interested')), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), " +
+    "PRIMARY KEY (event_id,user_id))"
+  );
+  await pool.query("CREATE INDEX IF NOT EXISTS event_rsvps_user_idx ON event_rsvps(user_id,event_id)");
+
   return true;
 }
 

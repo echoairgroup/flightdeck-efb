@@ -103,14 +103,14 @@ const NEWS_FEEDS = [
 
 function decodeXmlText(value = "") {
   return String(value)
-    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, "$1")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;|&#39;/g, "'")
-    .replace(/&#(\\d+);/g, (_match, code) => {
+    .replace(/&#(\d+);/g, (_match, code) => {
       const number = Number(code);
       return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : "";
     })
@@ -118,17 +118,17 @@ function decodeXmlText(value = "") {
       const number = parseInt(code, 16);
       return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : "";
     })
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 function xmlTagValue(xml, tag) {
-  const match = xml.match(new RegExp("<" + tag + "(?:\\\\s[^>]*)?>([\\\\s\\\\S]*?)</" + tag + ">", "i"));
+  const match = xml.match(new RegExp("<" + tag + "(?:\\s[^>]*)?>([\\s\\S]*?)</" + tag + ">", "i"));
   return match ? decodeXmlText(match[1]) : "";
 }
 
 function parseNewsFeed(xml, category) {
-  const items = [...String(xml).matchAll(/<item(?:\\s[^>]*)?>([\\s\\S]*?)<\\/item>/gi)];
+  const items = [...String(xml).matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)];
   return items.map(match => {
     const block = match[1];
     const title = xmlTagValue(block, "title");
@@ -155,8 +155,8 @@ function escapeHtml(value = "") {
 async function sendWelcomeEmail(user) {
   if (!user?.email || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return false;
   const displayName = escapeHtml(user.display_name || user.username || "pilot");
-  const text = "Welcome to FlyTech, " + (user.display_name || user.username || "pilot") + "! Your account is ready. Sign in to explore flight planning, weather, logbook tools, community events and the MSFS 2024 companion setup guide. Fly safe, and enjoy your next flight.\\n\\nFlyTech";
-  const html = "<!doctype html><html><body style=\\"margin:0;background:#f4f8fb;font-family:Arial,sans-serif;color:#182c3e;padding:32px 16px\\"><main style=\\"max-width:560px;margin:0 auto;background:#fff;border:1px solid #e1eaf0;border-radius:18px;padding:32px\\"><div style=\\"font-weight:800;letter-spacing:.12em;color:#267dc3;font-size:13px\\">FLYTECH</div><h1 style=\\"font-size:28px;line-height:1.2;margin:22px 0 12px\\">Welcome aboard, " + displayName + ".</h1><p style=\\"font-size:15px;line-height:1.7;color:#41596d\\">Your FlyTech account is ready. We built your workspace to bring flight planning, aviation weather, flight records, simulator telemetry and the flight-sim community together in one place.</p><div style=\\"background:#e9f5fb;border-radius:12px;padding:18px;margin:22px 0\\"><strong>Your next steps</strong><p style=\\"margin:8px 0 0;line-height:1.7;color:#41596d\\">Import an existing SimBrief briefing, set your preferred aircraft, or open the MSFS 2024 setup guide to pair the Windows companion.</p></div><p style=\\"font-size:13px;color:#657d90;line-height:1.6\\">FlyTech is built for flight simulation. Always verify important procedures and data with your aircraft add-on documentation and official sources.</p><p style=\\"margin-top:28px;font-size:13px;color:#657d90\\">See you in the virtual skies,<br/><strong>The FlyTech team</strong></p></main></body></html>";
+  const text = "Welcome to FlyTech, " + (user.display_name || user.username || "pilot") + "! Your account is ready. Sign in to explore flight planning, weather, logbook tools, community events and the MSFS 2024 companion setup guide. Fly safe, and enjoy your next flight.\n\nFlyTech";
+  const html = '<!doctype html><html><body style="margin:0;background:#f4f8fb;font-family:Arial,sans-serif;color:#182c3e;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e1eaf0;border-radius:18px;padding:32px"><div style="font-weight:800;letter-spacing:.12em;color:#267dc3;font-size:13px">FLYTECH</div><h1 style="font-size:28px;line-height:1.2;margin:22px 0 12px">Welcome aboard, ' + displayName + '.</h1><p style="font-size:15px;line-height:1.7;color:#41596d">Your FlyTech account is ready. We built your workspace to bring flight planning, aviation weather, flight records, simulator telemetry and the flight-sim community together in one place.</p><div style="background:#e9f5fb;border-radius:12px;padding:18px;margin:22px 0"><strong>Your next steps</strong><p style="margin:8px 0 0;line-height:1.7;color:#41596d">Import an existing SimBrief briefing, set your preferred aircraft, or open the MSFS 2024 setup guide to pair the Windows companion.</p></div><p style="font-size:13px;color:#657d90;line-height:1.6">FlyTech is built for flight simulation. Always verify important procedures and data with your aircraft add-on documentation and official sources.</p><p style="margin-top:28px;font-size:13px;color:#657d90">See you in the virtual skies,<br/><strong>The FlyTech team</strong></p></main></body></html>';
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -176,6 +176,7 @@ async function sendWelcomeEmail(user) {
   if (!response.ok) throw new Error("Email provider returned HTTP " + response.status + ".");
   return true;
 }
+
 function coordinate(value, min, max) {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;

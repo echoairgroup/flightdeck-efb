@@ -51,6 +51,7 @@ const NAV = [
   { group: "FLIGHT OPERATIONS", items: [
     { id: "home", label: "Overview", icon: LayoutDashboard },
     { id: "dispatch", label: "Flight planning", icon: Route },
+    { id: "msfs-planner", label: "MSFS Flight Planner", icon: ExternalLink },
     { id: "airports", label: "Airports", icon: MapPin },
     { id: "weather", label: "Weather", icon: CloudSun },
     { id: "traffic", label: "Live network", icon: Radio }
@@ -64,6 +65,7 @@ const NAV = [
   ]},
   { group: "DISCOVER & COMMUNITY", items: [
     { id: "news", label: "Aviation news", icon: Newspaper },
+    { id: "newsky", label: "NewSky flights", icon: Plane },
     { id: "airlines", label: "Virtual airlines", icon: Building2 },
     { id: "events", label: "Community events", icon: CalendarDays },
     { id: "learn", label: "Pilot academy", icon: GraduationCap }
@@ -77,6 +79,8 @@ const NAV = [
 const PAGE_PATHS = {
   home: "/",
   dispatch: "/flight-planning",
+  "msfs-planner": "/msfs-flight-planner",
+  newsky: "/newsky-flights",
   airports: "/airports",
   weather: "/weather",
   traffic: "/live-network",
@@ -577,6 +581,8 @@ function App() {
       <div className="page-content">
         {page === "home" && <Dashboard user={user} health={health} aircraft={selectedAircraft} latestPlan={latestPlan} lastFlight={lastFlight} plans={plans} flights={flights} telemetry={telemetry} telemetryError={telemetryError} telemetryAge={telemetryAge} navigate={navigate} refreshPrivateData={refreshPrivateData} refreshWeather={refreshWeather} loading={loading} />}
         {page === "dispatch" && <Dispatch user={user} plans={plans} savePlan={savePlan} removePlan={removePlan} loading={loading} navigate={navigate} />}
+        {page === "msfs-planner" && <MSFSFlightPlanner />}
+        {page === "newsky" && <NewSkyPage user={user} navigate={navigate} />}
         {page === "airports" && <Airports airport={airport} refreshAirport={refreshAirport} loading={loading} />}
         {page === "weather" && <Weather weather={weather} refreshWeather={refreshWeather} loading={loading} />}
         {page === "traffic" && <Traffic traffic={traffic} refreshTraffic={refreshTraffic} loading={loading} />}
@@ -683,6 +689,149 @@ function Dashboard({ user, health, aircraft, latestPlan, lastFlight, plans, flig
       </div>
     </div>
     <div className="dashboard-footnote"><ShieldCheck size={14} /><span>Designed for flight simulation. Always verify performance and procedure details against your aircraft add-on and applicable network rules.</span><button className="text-action" onClick={refreshPrivateData}>Refresh cloud data <RefreshCw size={13} /></button></div>
+  </>;
+}
+
+
+function MSFSFlightPlanner() {
+  const plannerUrl = "https://planner.flightsimulator.com/";
+  return <>
+    <SectionHeading eyebrow="MICROSOFT FLIGHT SIMULATOR 2024" title="Online Flight Planner" subtitle="Use Microsoft's own flight-planning website instead of relying on a separate Navigraph Charts integration." action={<a className="button-primary link-button" href={plannerUrl} target="_blank" rel="noreferrer">Launch official planner <ExternalLink size={15} /></a>} />
+    <div className="planner-hero">
+      <div className="planner-hero-icon"><Plane size={26} /></div>
+      <div className="planner-hero-copy">
+        <span className="eyebrow">OFFICIAL MICROSOFT TOOL</span>
+        <h2>Plan here. Continue in your simulator.</h2>
+        <p>The MSFS 2024 Online Flight Planner lets you plan and discover routes, view aviation charts and maps, check METAR/TAF weather, and look up radio-navigation information.</p>
+        <a className="button-primary link-button" href={plannerUrl} target="_blank" rel="noreferrer">Open MSFS Flight Planner <ArrowUpRight size={16} /></a>
+      </div>
+      <div className="planner-status"><CheckCircle2 size={16} /><span>Official web service</span></div>
+    </div>
+    <div className="planner-info-grid">
+      <Panel title="What you can use it for" subtitle="FlyTech opens the official website directly instead of copying licensed chart data.">
+        <div className="planner-feature-list">
+          <div><Route size={18} /><span><strong>Route planning</strong><small>Create and review routes before loading into MSFS 2024.</small></span></div>
+          <div><Map size={18} /><span><strong>Charts and maps</strong><small>View the planner's available chart coverage.</small></span></div>
+          <div><CloudSun size={18} /><span><strong>Weather and radio navigation</strong><small>Check METAR, TAF and radio-navigation information in the official tool.</small></span></div>
+        </div>
+      </Panel>
+      <Panel title="First-time access" subtitle="A few things to know before you open it.">
+        <ol className="planner-steps">
+          <li>Open the planner in a new tab.</li>
+          <li>Sign in with the Xbox account linked to MSFS 2024 when Microsoft asks for it.</li>
+          <li>Create your route and use the planner's own import workflow to transfer it into the simulator.</li>
+        </ol>
+        <div className="notice notice-info"><ShieldCheck size={16} /><span>This opens Microsoft's website in its own tab. FlyTech does not collect your Microsoft login, mirror chart data, or claim to use the planner's private APIs.</span></div>
+      </Panel>
+    </div>
+    <div className="planner-source"><span>Official source</span><a href="https://www.flightsimulator.com/guide/enhancing-your-experience-add-ons-and-mods/" target="_blank" rel="noreferrer">Microsoft Flight Simulator: Online Flight Planner <ExternalLink size={13} /></a></div>
+  </>;
+}
+
+function NewSkyPage({ user, navigate }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const [mode, setMode] = useState("ongoing");
+  const [start, setStart] = useState(weekAgo);
+  const [end, setEnd] = useState(today);
+  const [flights, setFlights] = useState([]);
+  const [totalResults, setTotalResults] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [fetchedAt, setFetchedAt] = useState(null);
+  const [details, setDetails] = useState({});
+  const [detailLoading, setDetailLoading] = useState({});
+
+  const loadFlights = async (nextMode = mode) => {
+    if (!user) { setError(""); return; }
+    setLoading(true);
+    setError("");
+    try {
+      let result;
+      if (nextMode === "ongoing") result = await api("/newsky/ongoing");
+      else if (nextMode === "recent") result = await api("/newsky/recent?count=100&skip=0");
+      else result = await api("/newsky/bydate", { method: "POST", body: JSON.stringify({ start, end, count: 100, skip: 0 }) });
+      setMode(nextMode);
+      setFlights(Array.isArray(result.flights) ? result.flights : []);
+      setTotalResults(Number(result.totalResults || 0));
+      setFetchedAt(result.fetchedAt || new Date().toISOString());
+      setDetails({});
+    } catch (requestError) {
+      setFlights([]);
+      setTotalResults(0);
+      setError(requestError.message || "Could not load NewSky flights.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) void loadFlights("ongoing");
+  }, [user?.id]);
+
+  const showDetails = async flight => {
+    if (!flight.id || details[flight.id]) return;
+    setDetailLoading(previous => ({ ...previous, [flight.id]: true }));
+    try {
+      const result = await api("/newsky/flight/" + encodeURIComponent(flight.id));
+      setDetails(previous => ({ ...previous, [flight.id]: result.flight || null }));
+    } catch (requestError) {
+      setError(requestError.message || "Could not load the NewSky flight details.");
+    } finally {
+      setDetailLoading(previous => ({ ...previous, [flight.id]: false }));
+    }
+  };
+
+  const currentTitle = mode === "ongoing" ? "Ongoing flights" : mode === "recent" ? "Recent flights" : "Flights by date";
+  const formatFlightDate = value => {
+    if (!value) return "Date not supplied";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return <>
+    <SectionHeading eyebrow="AIRLINE OPERATIONS · NEWSKY" title="NewSky flight board" subtitle="Read live airline operations from NewSky. The API key stays on the FlyTech server; pilots never enter or see it here." action={<button type="button" className="button-secondary" onClick={() => void loadFlights(mode)} disabled={!user || loading}><RefreshCw size={15} /> Refresh</button>} />
+    {!user && <div className="notice notice-info"><LogIn size={17} /><span>Sign in to view NewSky airline data.</span><button className="text-action" onClick={() => navigate("settings")}>Open account <ArrowRight size={14} /></button></div>}
+    <Panel title="Choose a flight feed" subtitle="NewSky limits requests and the server caches results briefly to avoid unnecessary API calls.">
+      <div className="newsky-feed-controls">
+        <button type="button" className={mode === "ongoing" ? "button-primary" : "button-secondary"} onClick={() => void loadFlights("ongoing")} disabled={!user || loading}><Activity size={15} /> Ongoing</button>
+        <button type="button" className={mode === "recent" ? "button-primary" : "button-secondary"} onClick={() => void loadFlights("recent")} disabled={!user || loading}><Clock3 size={15} /> Recent</button>
+        <form className="newsky-date-form" onSubmit={event => { event.preventDefault(); void loadFlights("bydate"); }}>
+          <label>From<input type="date" value={start} max={end} onChange={event => setStart(event.target.value)} required /></label>
+          <label>To<input type="date" value={end} min={start} onChange={event => setEnd(event.target.value)} required /></label>
+          <button type="submit" className={mode === "bydate" ? "button-primary" : "button-secondary"} disabled={!user || loading}><Search size={15} /> Search dates</button>
+        </form>
+      </div>
+      <div className="newsky-feed-note"><ShieldCheck size={15} /><span>NewSky's date-range endpoint supports up to 30 days per request. This is read-only and does not create, alter or delete flights in NewSky.</span></div>
+    </Panel>
+    {error && <div className="notice notice-error"><AlertCircle size={17} /><span>{error}</span></div>}
+    <Panel title={currentTitle} subtitle={fetchedAt ? "Last fetched " + formatFlightDate(fetchedAt) : "Live information returned by NewSky."} action={<span className="count-chip">{totalResults} total</span>}>
+      {loading ? <EmptyState icon={RefreshCw} title="Contacting NewSky" text="Retrieving airline records from the server-side connector." /> :
+        flights.length ? <div className="newsky-flight-list">
+          {flights.map((flight, index) => <article className="newsky-flight" key={flight.id || flight.flightNumber + "-" + flight.date + "-" + index}>
+            <div className="newsky-route">
+              <div><small>DEPARTURE</small><strong>{flight.departure || "—"}</strong></div>
+              <ArrowRight size={19} />
+              <div><small>ARRIVAL</small><strong>{flight.arrival || "—"}</strong></div>
+            </div>
+            <div className="newsky-flight-main">
+              <strong>{flight.flightNumber || "Flight record"}</strong>
+              <span>{flight.aircraft || "Aircraft not supplied"}{flight.pilot ? " · " + flight.pilot : ""}</span>
+              <small>{formatFlightDate(flight.date)}</small>
+            </div>
+            <div className="newsky-flight-metrics">
+              {flight.status && <Pill tone={/complete|landed|arrived/i.test(flight.status) ? "green" : "muted"}>{flight.status}</Pill>}
+              {flight.duration && <span>{flight.duration}</span>}
+              {flight.distanceNm !== null && flight.distanceNm !== undefined && <span>{formatNumber(flight.distanceNm)} NM</span>}
+              {flight.rating && <span>Rating {flight.rating}</span>}
+              {flight.id && <button type="button" className="text-action" onClick={() => void showDetails(flight)} disabled={detailLoading[flight.id]}>{detailLoading[flight.id] ? "Loading…" : details[flight.id] ? "Details loaded" : "Details"} <ChevronDown size={14} /></button>}
+            </div>
+            {flight.id && details[flight.id] && <div className="newsky-flight-details"><strong>NewSky flight details</strong><pre>{JSON.stringify(details[flight.id], null, 2)}</pre></div>}
+          </article>)}
+        </div> :
+        <EmptyState icon={Plane} title={user ? "No flight records to show" : "Sign in to continue"} text={user ? (error ? "Check the API key and its NewSky permissions, then refresh." : "Choose another feed or date range. If no key has been configured, the server will explain what is missing.") : "Your NewSky connection is provided by the shared FlyTech backend."} />
+      }
+    </Panel>
   </>;
 }
 
@@ -1023,13 +1172,13 @@ function Scratchpad({ value, setValue, save, saved, user }) {
 
 function Integrations({ status, error, onRefresh, navigate }) {
   const items = status?.integrations || [];
-  const IconFor = name => name === "SimBrief" ? Route : name === "Aviation Weather" ? CloudSun : name === "Aviation news" ? Newspaper : name === "Welcome email" ? Mail : name === "VATSIM" ? Radio : name === "Airport data" ? MapPin : name === "MSFS 2024" ? Activity : name === "Navigraph Charts" ? Map : name === "NewSky" ? Plane : Plug;
+  const IconFor = name => name === "SimBrief" ? Route : name === "Aviation Weather" ? CloudSun : name === "Aviation news" ? Newspaper : name === "Welcome email" ? Mail : name === "VATSIM" ? Radio : name === "Airport data" ? MapPin : name === "MSFS 2024" ? Activity : name === "MSFS Online Flight Planner" ? ExternalLink : name === "NewSky" ? Plane : Plug;
   const toneFor = state => state === "available" || state === "configured" ? "green" : state === "needs-setup" ? "amber" : "muted";
   return <>
     <SectionHeading eyebrow="EXTERNAL SERVICES" title="Connections" subtitle="A transparent view of available data providers, optional services and local simulator requirements." action={<button className="button-secondary" onClick={onRefresh}><RefreshCw size={15} /> Refresh status</button>} />
     <div className="integration-callout"><div className="integration-callout-icon"><ShieldCheck size={20} /></div><div><strong>No hidden connected accounts</strong><p>FlyTech shows a service as connected only when it is actually configured or has returned data. Optional integrations remain clearly marked until they are set up.</p></div></div>
     {error && <div className="notice notice-error"><AlertCircle size={16} />{error}</div>}
-    <div className="integration-grid">{items.map(item => { const Icon = IconFor(item.name); return <article className="integration-card" key={item.name}><div className="integration-card-top"><div className="integration-icon"><Icon size={20} /></div><Pill tone={toneFor(item.status)}>{item.label || titleCase(item.status)}</Pill></div><h2>{item.name}</h2><p>{item.description}</p>{item.detail && <small>{item.detail}</small>}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="source-link">Provider documentation <ExternalLink size={13} /></a>}{item.name === "MSFS 2024" && <button className="text-action" onClick={() => navigate("simulator")}>Open setup guide <ArrowRight size={14} /></button>}</article>; })}</div>
+    <div className="integration-grid">{items.map(item => { const Icon = IconFor(item.name); return <article className="integration-card" key={item.name}><div className="integration-card-top"><div className="integration-icon"><Icon size={20} /></div><Pill tone={toneFor(item.status)}>{item.label || titleCase(item.status)}</Pill></div><h2>{item.name}</h2><p>{item.description}</p>{item.detail && <small>{item.detail}</small>}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="source-link">Provider documentation <ExternalLink size={13} /></a>}{item.name === "MSFS 2024" && <button className="text-action" onClick={() => navigate("simulator")}>Open setup guide <ArrowRight size={14} /></button>}{item.name === "MSFS Online Flight Planner" && <button className="text-action" onClick={() => navigate("msfs-planner")}>Open planner guide <ArrowRight size={14} /></button>}{item.name === "NewSky" && <button className="text-action" onClick={() => navigate("newsky")}>Open NewSky flight board <ArrowRight size={14} /></button>}</article>; })}</div>
     {!items.length && !error && <EmptyState icon={Plug} title="Loading connection status" text="FlyTech is checking server configuration and provider availability." />}
     <div className="integration-disclaimer"><LockKeyhole size={16} /><span>API tokens remain on the server. Never put provider secrets in frontend environment variables or public JavaScript files.</span></div>
   </>;

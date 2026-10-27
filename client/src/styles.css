@@ -898,3 +898,115 @@ input, select, textarea { border-radius: 9px; }
   .newsky-flight-metrics { grid-column:auto; }
   .newsky-flight-details { grid-column:auto; }
 }
+
+
+/* Native MSFS route planner */
+.planner-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:18px; }
+.planner-heading h1 { margin:5px 0 9px; letter-spacing:-.045em; font-size:clamp(26px,3vw,36px); }
+.planner-heading p { color:var(--text-soft); max-width:800px; line-height:1.65; margin:0; }
+.planner-intro-banner { display:flex; align-items:center; gap:15px; padding:17px; margin-bottom:18px; background:linear-gradient(125deg,var(--panel),var(--green-wash)); border:1px solid var(--line); border-radius:17px; }
+.planner-intro-icon { display:grid; place-items:center; flex:0 0 48px; height:48px; border-radius:14px; border:1px solid var(--line); background:var(--panel); color:var(--accent); }
+.planner-intro-banner > div:nth-child(2) { flex:1; min-width:0; }
+.planner-intro-banner strong { font-size:14px; }
+.planner-intro-banner p { margin:5px 0 0; color:var(--text-soft); font-size:12px; line-height:1.65; }
+.planner-workspace { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(300px,.8fr); align-items:start; gap:17px; }
+.planner-main-column,.planner-side-column { display:grid; gap:16px; min-width:0; }
+.planner-side-column { position:sticky; top:84px; }
+.planner-card { min-width:0; }
+.planner-card > :not(.panel-heading) { margin-top:0; }
+.planner-card .panel-heading { margin-bottom:16px; }
+.planner-card .panel-heading h2 { font-size:15px; }
+.planner-card .panel-heading p { max-width:650px; line-height:1.6; }
+.planner-airport-grid { display:grid; grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr); gap:12px; align-items:center; }
+.planner-airport-field { display:grid; gap:8px; min-width:0; }
+.planner-airport-field > label { color:var(--text); font-size:12px; font-weight:750; }
+.planner-airport-field > small { min-height:31px; color:var(--muted); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+.planner-code-row { display:flex; min-width:0; gap:7px; }
+.planner-code-row input { width:100%; min-width:0; height:42px; padding:10px 11px; border:1px solid var(--line-strong); border-radius:10px; background:var(--panel-alt); color:var(--text); font:700 14px "DM Mono",monospace; text-transform:uppercase; }
+.planner-code-row .button-secondary { gap:6px; padding:8px 10px; font-size:12px; }
+.planner-route-divider { display:grid; place-items:center; color:var(--accent); }
+.planner-parameters-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:20px; }
+.planner-parameters-grid .field { min-width:0; }
+.planner-parameters-grid input,.planner-parameters-grid select { width:100%; min-width:0; }
+.planner-map-shell { overflow:hidden; border:1px solid var(--line); border-radius:13px; background:var(--panel-alt); }
+.planner-map { width:100%; height:430px; background:var(--panel-raised); z-index:0; }
+.planner-map .leaflet-control-attribution { font-size:9px; }
+.planner-map-label { padding:4px 6px !important; border:1px solid var(--line) !important; border-radius:6px !important; box-shadow:0 3px 12px rgba(10,30,50,.12) !important; background:var(--panel) !important; color:var(--text) !important; font-size:10px !important; font-weight:750 !important; }
+.planner-map-label:before { display:none !important; }
+.planner-map-hint { display:flex; align-items:center; gap:7px; padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+.planner-map-hint svg { color:var(--accent); }
+.planner-map-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:11px; }
+.planner-map-actions .button-secondary { font-size:12px; }
+.planner-waypoint-list { display:grid; gap:9px; margin-bottom:13px; }
+.planner-waypoint-row { display:grid; grid-template-columns:28px minmax(100px,1fr) minmax(95px,.9fr) minmax(95px,.9fr) 32px; gap:8px; align-items:end; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--panel-alt); }
+.planner-waypoint-index { display:grid; place-items:center; width:27px; height:30px; border-radius:8px; background:var(--green-wash); color:var(--accent-strong); font:11px "DM Mono",monospace; }
+.planner-waypoint-row label { display:grid; gap:6px; min-width:0; color:var(--muted); font-size:10px; font-weight:700; }
+.planner-waypoint-row input { width:100%; min-width:0; height:36px; padding:7px 8px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel); color:var(--text); font:12px "DM Mono",monospace; }
+.planner-waypoint-row .icon-button { width:30px; height:34px; padding:0; }
+.planner-empty-waypoints { display:grid; justify-items:center; gap:7px; padding:24px 14px; text-align:center; border:1px dashed var(--line-strong); border-radius:12px; color:var(--muted); }
+.planner-empty-waypoints svg { color:var(--accent); }
+.planner-empty-waypoints strong { color:var(--text); font-size:13px; }
+.planner-empty-waypoints span { font-size:11px; line-height:1.55; }
+.planner-summary-route { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:10px; padding:13px 0 17px; border-bottom:1px solid var(--line); }
+.planner-summary-route > div { display:grid; gap:5px; min-width:0; }
+.planner-summary-route > div:last-child { text-align:right; }
+.planner-summary-route > svg { color:var(--accent); }
+.planner-summary-route small { color:var(--muted); font-size:9px; font-weight:800; letter-spacing:.1em; }
+.planner-summary-route strong { font-size:20px; letter-spacing:-.035em; }
+.planner-summary-route span { color:var(--muted); font-size:10px; line-height:1.4; overflow-wrap:anywhere; }
+.planner-summary-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 12px; }
+.planner-summary-metrics > div { display:grid; gap:7px; padding:13px 0; border-bottom:1px solid var(--line); }
+.planner-summary-metrics span { color:var(--muted); font-size:10px; }
+.planner-summary-metrics strong { color:var(--text); font-size:17px; font-weight:750; letter-spacing:-.03em; overflow-wrap:anywhere; }
+.planner-route-string { padding:14px 0; border-bottom:1px solid var(--line); }
+.planner-route-string > span { color:var(--muted); font-size:9px; font-weight:800; letter-spacing:.1em; }
+.planner-route-string p { margin:8px 0 10px; color:var(--text); font:11px/1.8 "DM Mono",monospace; overflow-wrap:anywhere; }
+.planner-route-string .text-action { padding:0; }
+.planner-primary-actions { display:grid; gap:8px; margin-top:15px; }
+.planner-primary-actions > button,.planner-primary-actions > label { width:100%; justify-content:center; }
+.planner-import-button { position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+.planner-import-button input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.planner-cloud-save { display:flex; width:100%; justify-content:center; margin-top:9px; }
+.planner-source-note { display:flex; align-items:flex-start; gap:8px; margin-top:13px; padding-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:10px; line-height:1.6; }
+.planner-source-note svg { flex:0 0 auto; color:var(--accent); margin-top:1px; }
+.planner-aircraft { display:flex; gap:12px; align-items:flex-start; }
+.planner-aircraft-icon { display:grid; place-items:center; flex:0 0 43px; height:43px; border-radius:13px; border:1px solid var(--line); background:var(--green-wash); color:var(--accent); }
+.planner-aircraft > div:nth-child(2) { display:grid; gap:5px; min-width:0; }
+.planner-aircraft strong { font-size:13px; }
+.planner-aircraft span { color:var(--muted); font:11px "DM Mono",monospace; }
+.planner-aircraft small { margin-top:3px; color:var(--muted); font-size:10px; line-height:1.6; }
+.planner-checklist { display:grid; gap:11px; }
+.planner-checklist > div { display:flex; align-items:flex-start; gap:8px; color:var(--text-soft); font-size:11px; line-height:1.55; }
+.planner-checklist svg { flex:0 0 auto; color:var(--accent); margin-top:1px; }
+.planner-disclaimer { display:flex; align-items:flex-start; gap:10px; margin-top:16px; padding:14px 15px; border:1px solid var(--line); border-radius:12px; background:var(--panel-alt); color:var(--muted); }
+.planner-disclaimer svg { flex:0 0 auto; color:var(--accent); margin-top:1px; }
+.planner-disclaimer p { margin:0; font-size:11px; line-height:1.7; }
+@media (max-width: 1180px) {
+  .planner-workspace { grid-template-columns:minmax(0,1.2fr) minmax(285px,.8fr); }
+  .planner-waypoint-row { grid-template-columns:27px minmax(80px,1fr) minmax(85px,1fr) minmax(85px,1fr) 30px; gap:6px; }
+  .planner-map { height:380px; }
+}
+@media (max-width: 900px) {
+  .planner-workspace { grid-template-columns:1fr; }
+  .planner-side-column { position:static; }
+  .planner-map { height:390px; }
+}
+@media (max-width: 620px) {
+  .planner-heading { align-items:flex-start; }
+  .planner-heading h1 { font-size:27px; }
+  .planner-heading p { font-size:12px; }
+  .planner-heading > button { flex:0 0 auto; }
+  .planner-intro-banner { align-items:flex-start; flex-wrap:wrap; }
+  .planner-intro-banner > .pill { margin-left:62px; }
+  .planner-airport-grid { grid-template-columns:1fr; gap:13px; }
+  .planner-route-divider { transform:rotate(45deg); justify-self:center; }
+  .planner-code-row { flex-wrap:nowrap; }
+  .planner-parameters-grid { grid-template-columns:1fr 1fr; }
+  .planner-waypoint-row { grid-template-columns:28px minmax(0,1fr) minmax(0,1fr) 30px; }
+  .planner-waypoint-row label:first-of-type { grid-column:2/4; }
+  .planner-waypoint-row label:nth-of-type(2) { grid-column:2; }
+  .planner-waypoint-row label:nth-of-type(3) { grid-column:3; }
+  .planner-waypoint-row .icon-button { grid-column:4; grid-row:2; }
+  .planner-map { height:320px; }
+  .planner-map-actions { flex-direction:column; align-items:stretch; }
+}

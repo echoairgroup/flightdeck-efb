@@ -303,37 +303,6 @@ function parseNewsFeed(xml, category) {
   }).filter(item => item.title && item.link);
 }
 
-function escapeHtml(value = "") {
-  return String(value).replace(/[&<>"']/g, character => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  })[character]);
-}
-
-async function sendWelcomeEmail(user) {
-  if (!user?.email || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return false;
-  const displayName = escapeHtml(user.display_name || user.username || "pilot");
-  const text = "Welcome to FlyTech, " + (user.display_name || user.username || "pilot") + "! Your account is ready. Sign in to explore flight planning, weather, logbook tools, community events and the MSFS 2024 companion setup guide. Fly safe, and enjoy your next flight.\n\nFlyTech";
-  const html = '<!doctype html><html><body style="margin:0;background:#f4f8fb;font-family:Arial,sans-serif;color:#182c3e;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e1eaf0;border-radius:18px;padding:32px"><div style="font-weight:800;letter-spacing:.12em;color:#267dc3;font-size:13px">FLYTECH</div><h1 style="font-size:28px;line-height:1.2;margin:22px 0 12px">Welcome aboard, ' + displayName + '.</h1><p style="font-size:15px;line-height:1.7;color:#41596d">Your FlyTech account is ready. We built your workspace to bring flight planning, aviation weather, flight records, simulator telemetry and the flight-sim community together in one place.</p><div style="background:#e9f5fb;border-radius:12px;padding:18px;margin:22px 0"><strong>Your next steps</strong><p style="margin:8px 0 0;line-height:1.7;color:#41596d">Import an existing SimBrief briefing, set your preferred aircraft, or open the MSFS 2024 setup guide to pair the Windows companion.</p></div><p style="font-size:13px;color:#657d90;line-height:1.6">FlyTech is built for flight simulation. Always verify important procedures and data with your aircraft add-on documentation and official sources.</p><p style="margin-top:28px;font-size:13px;color:#657d90">See you in the virtual skies,<br/><strong>The FlyTech team</strong></p></main></body></html>';
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + process.env.RESEND_API_KEY,
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify({
-      from: process.env.EMAIL_FROM,
-      to: [user.email],
-      subject: "Welcome to FlyTech — your flight desk is ready",
-      text,
-      html
-    }),
-    signal: AbortSignal.timeout(7000)
-  });
-  if (!response.ok) throw new Error("Email provider returned HTTP " + response.status + ".");
-  return true;
-}
-
 function coordinate(value, min, max) {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
@@ -436,24 +405,17 @@ app.get("/api/auth/me", async (req, res) => {
 app.post("/api/auth/register", registerLimiter, async (req, res) => {
   if (!pool) return res.status(503).json({ error: "Cloud database is not configured. Add DATABASE_URL to the hosting environment before creating accounts." });
   const username = cleanString(req.body?.username, 24).toLowerCase();
-  const email = cleanString(req.body?.email, 254).toLowerCase() || null;
   const displayName = cleanString(req.body?.display_name || username, 60) || username;
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!/^[a-z0-9_.-]{3,24}$/.test(username)) return res.status(400).json({ error: "Username must be 3–24 characters and use letters, numbers, dots, underscores or hyphens." });
   if (password.length < 8 || password.length > 128) return res.status(400).json({ error: "Password must contain between 8 and 128 characters." });
-  if (!email) return res.status(400).json({ error: "Enter an email address so FlyTech can send your welcome message." });
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address." });
   try {
     const hash = await bcrypt.hash(password, 12);
-    const result = await query("INSERT INTO users(username,email,display_name,password_hash) VALUES($1,$2,$3,$4) RETURNING id,username,email,display_name,created_at", [username, email, displayName, hash]);
-    const welcomeEmailConfigured = Boolean(result.rows[0].email && process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+    const result = await query("INSERT INTO users(username,display_name,password_hash) VALUES($1,$2,$3) RETURNING id,username,email,display_name,created_at", [username, displayName, hash]);
     res.cookie("fd_session", sessionToken(result.rows[0]), cookieOptions);
-    res.status(201).json({ user: publicUser(result.rows[0]), welcomeEmail: welcomeEmailConfigured ? "enabled" : "not-configured" });
-    if (welcomeEmailConfigured) {
-      void sendWelcomeEmail(result.rows[0]).catch(error => console.warn("Welcome email delivery failed:", error.message));
-    }
+    res.status(201).json({ user: publicUser(result.rows[0]) });
   } catch (error) {
-    if (error.code === "23505") return res.status(409).json({ error: "That username or email is already in use." });
+    if (error.code === "23505") return res.status(409).json({ error: "That username is already in use." });
     console.error("Registration failed:", error.message);
     res.status(503).json({ error: "Could not create the account. Check the database connection and try again." });
   }
@@ -746,10 +708,9 @@ app.get("/api/integrations/status", (req, res) => {
       { name: "Aviation Weather", status: "available", label: "PUBLIC API", description: "Fetches METAR observations and TAF forecasts when the provider has a current record.", detail: "Subject to upstream availability and rate limits.", url: "https://aviationweather.gov/data/api/" },
       { name: "VATSIM", status: "available", label: "PUBLIC FEED", description: "Loads the public network data feed with actual pilots and controllers.", detail: "This does not connect a user to the VATSIM network.", url: "https://data.vatsim.net/" },
       { name: "Aviation news", status: "available", label: "PUBLIC FEEDS", description: "Fetches recent aviation and flight-simulation headlines from public RSS searches.", detail: "The feed is cached briefly and can be unavailable when an external provider is down.", url: "https://news.google.com/" },
-      { name: "Welcome email", status: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "configured" : "needs-setup", label: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "CONFIGURED" : "OPTIONAL SETUP", description: "Sends a welcome note through Resend after new account creation.", detail: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "Server-side Resend credentials and sender are present." : "Optional: configure RESEND_API_KEY and EMAIL_FROM in the server environment. A verified sender domain is required.", url: "https://resend.com/docs/send-with-nodejs" },
       { name: "Airport data", status: process.env.AIRPORTDB_TOKEN ? "configured" : "needs-setup", label: process.env.AIRPORTDB_TOKEN ? "ENRICHMENT ENABLED" : "BASIC LOOKUP", description: "Airport data is fetched from provider responses; AirportDB may add runway and frequency detail.", detail: process.env.AIRPORTDB_TOKEN ? "Server-side AirportDB token detected." : "Add AIRPORTDB_TOKEN to the server environment for enriched airport data.", url: "https://airportdb.io/" },
       { name: "MSFS 2024", status: "needs-setup", label: "LOCAL COMPANION", description: "The Windows companion reads simulator variables through Microsoft's SimConnect SDK and uploads account-scoped telemetry.", detail: "Not connected until you build, run and pair the companion on the simulator PC.", url: "https://docs.flightsimulator.com/msfs2024/retail/programming-apis/simconnect/simconnect-sdk/" },
-      { name: "MSFS Online Flight Planner", status: "available", label: "OFFICIAL WEB PLANNER", description: "Open Microsoft Flight Simulator 2024’s official online planner for route planning, charts, weather and radio-navigation information.", detail: "Opens Microsoft’s planner in a new tab. Sign-in access may require an Xbox account linked to MSFS 2024.", url: "https://planner.flightsimulator.com/" },
+      { name: "FlyTech MSFS Flight Planner", status: "available", label: "BUILT-IN PLANNER", description: "A native route-planning workspace with a map, custom waypoints, route estimates, and import/export of MSFS .pln files.", detail: "The planner is part of the FlyTech frontend. Common airport coordinates are included, and the backend can provide broader airport lookup and cloud saving." },
       { name: "NewSky", status: newSkyConfigured() ? "configured" : "needs-setup", label: newSkyConfigured() ? "TOKEN CONFIGURED" : "API KEY REQUIRED", description: "Read-only access to ongoing and recent airline flights, plus date-range history.", detail: newSkyConfigured() ? "A server-side token is present. Open NewSky flights to test its permissions and view flight records." : "Add NEWSKY_API_TOKEN to the Render backend. The key must include the flights permission.", url: "https://newsky.app/apidocs/" },
       { name: "X-Plane", status: "planned", label: "NOT IMPLEMENTED", description: "A separate local telemetry adapter is needed before X-Plane data can be read.", detail: "This release does not claim live X-Plane telemetry." }
     ]

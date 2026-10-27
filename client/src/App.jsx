@@ -6,10 +6,11 @@ import {
   LogOut, Map, MapPin, Menu, Moon, Navigation, NotebookPen, Plane, Plug, Plus,
   Radio, RefreshCw, Route, Save, Search, Settings as SettingsIcon, ShieldCheck, Smartphone, Sun, Server,
   Trash2, UserRound, Users, Wifi, Wind, Wrench, X, Zap, ClipboardCheck,
-  Building2, CalendarDays, GraduationCap, Mail, Newspaper, ArrowUpRight, CircleHelp
+  Building2, CalendarDays, GraduationCap, Newspaper, ArrowUpRight, CircleHelp
 } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import MSFSPlanner from "./MSFSPlanner.jsx";
 
 const AIRCRAFT = [
   { icao: "A20N", name: "Airbus A320neo", family: "Airbus A320 family" },
@@ -402,7 +403,7 @@ function App() {
         method: "POST",
         body: JSON.stringify({
           title: [plan.flightNumber || "Flight", plan.departure?.icao, plan.destination?.icao].filter(Boolean).join(" "),
-          source: "SimBrief",
+          source: plan.source || "SimBrief",
           simbrief_id: plan.simbriefId || null,
           flight_number: plan.flightNumber || null,
           dep: plan.departure?.icao || null,
@@ -581,7 +582,7 @@ function App() {
       <div className="page-content">
         {page === "home" && <Dashboard user={user} health={health} aircraft={selectedAircraft} latestPlan={latestPlan} lastFlight={lastFlight} plans={plans} flights={flights} telemetry={telemetry} telemetryError={telemetryError} telemetryAge={telemetryAge} navigate={navigate} refreshPrivateData={refreshPrivateData} refreshWeather={refreshWeather} loading={loading} />}
         {page === "dispatch" && <Dispatch user={user} plans={plans} savePlan={savePlan} removePlan={removePlan} loading={loading} navigate={navigate} />}
-        {page === "msfs-planner" && <MSFSFlightPlanner />}
+        {page === "msfs-planner" && <MSFSPlanner user={user} aircraft={selectedAircraft} lookupAirport={code => api("/airports/" + encodeURIComponent(code))} savePlan={savePlan} notify={notify} />}
         {page === "newsky" && <NewSkyPage user={user} navigate={navigate} />}
         {page === "airports" && <Airports airport={airport} refreshAirport={refreshAirport} loading={loading} />}
         {page === "weather" && <Weather weather={weather} refreshWeather={refreshWeather} loading={loading} />}
@@ -692,41 +693,6 @@ function Dashboard({ user, health, aircraft, latestPlan, lastFlight, plans, flig
   </>;
 }
 
-
-function MSFSFlightPlanner() {
-  const plannerUrl = "https://planner.flightsimulator.com/";
-  return <>
-    <SectionHeading eyebrow="MICROSOFT FLIGHT SIMULATOR 2024" title="Online Flight Planner" subtitle="Use Microsoft's own flight-planning website instead of relying on a separate Navigraph Charts integration." action={<a className="button-primary link-button" href={plannerUrl} target="_blank" rel="noreferrer">Launch official planner <ExternalLink size={15} /></a>} />
-    <div className="planner-hero">
-      <div className="planner-hero-icon"><Plane size={26} /></div>
-      <div className="planner-hero-copy">
-        <span className="eyebrow">OFFICIAL MICROSOFT TOOL</span>
-        <h2>Plan here. Continue in your simulator.</h2>
-        <p>The MSFS 2024 Online Flight Planner lets you plan and discover routes, view aviation charts and maps, check METAR/TAF weather, and look up radio-navigation information.</p>
-        <a className="button-primary link-button" href={plannerUrl} target="_blank" rel="noreferrer">Open MSFS Flight Planner <ArrowUpRight size={16} /></a>
-      </div>
-      <div className="planner-status"><CheckCircle2 size={16} /><span>Official web service</span></div>
-    </div>
-    <div className="planner-info-grid">
-      <Panel title="What you can use it for" subtitle="FlyTech opens the official website directly instead of copying licensed chart data.">
-        <div className="planner-feature-list">
-          <div><Route size={18} /><span><strong>Route planning</strong><small>Create and review routes before loading into MSFS 2024.</small></span></div>
-          <div><Map size={18} /><span><strong>Charts and maps</strong><small>View the planner's available chart coverage.</small></span></div>
-          <div><CloudSun size={18} /><span><strong>Weather and radio navigation</strong><small>Check METAR, TAF and radio-navigation information in the official tool.</small></span></div>
-        </div>
-      </Panel>
-      <Panel title="First-time access" subtitle="A few things to know before you open it.">
-        <ol className="planner-steps">
-          <li>Open the planner in a new tab.</li>
-          <li>Sign in with the Xbox account linked to MSFS 2024 when Microsoft asks for it.</li>
-          <li>Create your route and use the planner's own import workflow to transfer it into the simulator.</li>
-        </ol>
-        <div className="notice notice-info"><ShieldCheck size={16} /><span>This opens Microsoft's website in its own tab. FlyTech does not collect your Microsoft login, mirror chart data, or claim to use the planner's private APIs.</span></div>
-      </Panel>
-    </div>
-    <div className="planner-source"><span>Official source</span><a href="https://www.flightsimulator.com/guide/enhancing-your-experience-add-ons-and-mods/" target="_blank" rel="noreferrer">Microsoft Flight Simulator: Online Flight Planner <ExternalLink size={13} /></a></div>
-  </>;
-}
 
 function NewSkyPage({ user, navigate }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -1172,13 +1138,13 @@ function Scratchpad({ value, setValue, save, saved, user }) {
 
 function Integrations({ status, error, onRefresh, navigate }) {
   const items = status?.integrations || [];
-  const IconFor = name => name === "SimBrief" ? Route : name === "Aviation Weather" ? CloudSun : name === "Aviation news" ? Newspaper : name === "Welcome email" ? Mail : name === "VATSIM" ? Radio : name === "Airport data" ? MapPin : name === "MSFS 2024" ? Activity : name === "MSFS Online Flight Planner" ? ExternalLink : name === "NewSky" ? Plane : Plug;
+  const IconFor = name => name === "SimBrief" ? Route : name === "Aviation Weather" ? CloudSun : name === "Aviation news" ? Newspaper : name === "VATSIM" ? Radio : name === "Airport data" ? MapPin : name === "MSFS 2024" ? Activity : name === "FlyTech MSFS Flight Planner" ? Plane : name === "NewSky" ? Plane : Plug;
   const toneFor = state => state === "available" || state === "configured" ? "green" : state === "needs-setup" ? "amber" : "muted";
   return <>
     <SectionHeading eyebrow="EXTERNAL SERVICES" title="Connections" subtitle="A transparent view of available data providers, optional services and local simulator requirements." action={<button className="button-secondary" onClick={onRefresh}><RefreshCw size={15} /> Refresh status</button>} />
     <div className="integration-callout"><div className="integration-callout-icon"><ShieldCheck size={20} /></div><div><strong>No hidden connected accounts</strong><p>FlyTech shows a service as connected only when it is actually configured or has returned data. Optional integrations remain clearly marked until they are set up.</p></div></div>
     {error && <div className="notice notice-error"><AlertCircle size={16} />{error}</div>}
-    <div className="integration-grid">{items.map(item => { const Icon = IconFor(item.name); return <article className="integration-card" key={item.name}><div className="integration-card-top"><div className="integration-icon"><Icon size={20} /></div><Pill tone={toneFor(item.status)}>{item.label || titleCase(item.status)}</Pill></div><h2>{item.name}</h2><p>{item.description}</p>{item.detail && <small>{item.detail}</small>}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="source-link">Provider documentation <ExternalLink size={13} /></a>}{item.name === "MSFS 2024" && <button className="text-action" onClick={() => navigate("simulator")}>Open setup guide <ArrowRight size={14} /></button>}{item.name === "MSFS Online Flight Planner" && <button className="text-action" onClick={() => navigate("msfs-planner")}>Open planner guide <ArrowRight size={14} /></button>}{item.name === "NewSky" && <button className="text-action" onClick={() => navigate("newsky")}>Open NewSky flight board <ArrowRight size={14} /></button>}</article>; })}</div>
+    <div className="integration-grid">{items.map(item => { const Icon = IconFor(item.name); return <article className="integration-card" key={item.name}><div className="integration-card-top"><div className="integration-icon"><Icon size={20} /></div><Pill tone={toneFor(item.status)}>{item.label || titleCase(item.status)}</Pill></div><h2>{item.name}</h2><p>{item.description}</p>{item.detail && <small>{item.detail}</small>}{item.url && <a href={item.url} target="_blank" rel="noreferrer" className="source-link">Provider documentation <ExternalLink size={13} /></a>}{item.name === "MSFS 2024" && <button className="text-action" onClick={() => navigate("simulator")}>Open setup guide <ArrowRight size={14} /></button>}{item.name === "FlyTech MSFS Flight Planner" && <button className="text-action" onClick={() => navigate("msfs-planner")}>Open built-in planner <ArrowRight size={14} /></button>}{item.name === "NewSky" && <button className="text-action" onClick={() => navigate("newsky")}>Open NewSky flight board <ArrowRight size={14} /></button>}</article>; })}</div>
     {!items.length && !error && <EmptyState icon={Plug} title="Loading connection status" text="FlyTech is checking server configuration and provider availability." />}
     <div className="integration-disclaimer"><LockKeyhole size={16} /><span>API tokens remain on the server. Never put provider secrets in frontend environment variables or public JavaScript files.</span></div>
   </>;
@@ -1187,7 +1153,6 @@ function Integrations({ status, error, onRefresh, navigate }) {
 function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAircraft, signOut, pairingCode, generatePairingCode, health, navigate, notify }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -1200,12 +1165,12 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
     setAuthBusy(true);
     try {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
-      const body = mode === "login" ? { username, password } : { username, email, display_name: displayName || username, password };
+      const body = mode === "login" ? { username, password } : { username, display_name: displayName || username, password };
       const result = await api(endpoint, { method: "POST", body: JSON.stringify(body) });
       setUser(result.user);
       setPassword("");
       setAccountSaved(true);
-      if (mode === "register" && notify) notify(result.welcomeEmail === "enabled" ? "Welcome to FlyTech. Your welcome email is being sent." : "Account created. Welcome-email delivery needs server configuration.", "success");
+      if (mode === "register" && notify) notify("Your FlyTech account has been created.", "success");
       await onSignedIn();
     } catch (error) { setAuthError(error.message); }
     finally { setAuthBusy(false); }
@@ -1223,7 +1188,6 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
             <div className="auth-mode"><button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setAuthError(""); }}>Sign in</button><button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setAuthError(""); }}>Create account</button></div>
             {mode === "register" && <Field label="Display name"><input value={displayName} onChange={event => setDisplayName(event.target.value)} placeholder="How other pilots see you" maxLength={60} /></Field>}
             <Field label="Username"><input value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" required minLength={3} maxLength={24} placeholder="Your username" /></Field>
-            {mode === "register" && <Field label="Email address" hint="Required for your welcome email. Password recovery is not enabled yet."><input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required /></Field>}
             <Field label="Password" hint={mode === "register" ? "Use at least 8 characters." : undefined}><div className="password-field"><input type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(value => !value)}>{showPassword ? <LockKeyhole size={15} /> : <UserRound size={15} />}</button></div></Field>
             {authError && <div className="notice notice-error"><AlertCircle size={16} /><span>{authError}</span></div>}
             <button className="button-primary full" type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : mode === "login" ? <><LogIn size={16} /> Sign in securely</> : <><UserRound size={16} /> Create your account</>}</button>

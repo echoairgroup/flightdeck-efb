@@ -16,8 +16,31 @@ const production = process.env.NODE_ENV === "production";
 const SECRET = process.env.SESSION_SECRET || (production ? "" : "local-development-only-change-me");
 if (production && !SECRET) throw new Error("SESSION_SECRET must be configured in production.");
 
+const frontendOrigins = new Set([
+  "https://echoairgroup.github.io",
+  process.env.FRONTEND_ORIGIN || "",
+  ...(process.env.FRONTEND_ORIGINS || "").split(",")
+].map(origin => origin.trim().replace(/\/+$/, "")).filter(Boolean));
+const crossOriginFrontendEnabled = frontendOrigins.size > 0;
+
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigin = typeof origin === "string" && frontendOrigins.has(origin.replace(/\/+$/, ""));
+  if (allowedOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+    res.setHeader("Vary", "Origin");
+  }
+  if (req.method === "OPTIONS") {
+    if (origin && !allowedOrigin) return res.status(403).end();
+    return res.status(204).end();
+  }
+  next();
+});
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -43,7 +66,13 @@ const auth = (req, res, next) => {
   }
 };
 const sessionToken = user => jwt.sign({ id: user.id, username: user.username }, SECRET, { expiresIn: "30d", issuer: "flightdeck-efb" });
-const cookieOptions = { httpOnly: true, secure: production, sameSite: "lax", path: "/", maxAge: 30 * 24 * 60 * 60 * 1000 };
+const cookieOptions = {
+  httpOnly: true,
+  secure: production,
+  sameSite: production && crossOriginFrontendEnabled ? "none" : "lax",
+  path: "/",
+  maxAge: 30 * 24 * 60 * 60 * 1000
+};
 const hashSecret = value => crypto.createHash("sha256").update(String(value)).digest("hex");
 const cleanString = (value, max = 300) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const validIcao = value => /^[A-Z0-9]{4}$/.test(String(value || "").toUpperCase());

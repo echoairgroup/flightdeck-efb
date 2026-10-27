@@ -1003,7 +1003,7 @@ function Scratchpad({ value, setValue, save, saved, user }) {
 
 function Integrations({ status, error, onRefresh, navigate }) {
   const items = status?.integrations || [];
-  const IconFor = name => name === "SimBrief" ? Route : name === "Aviation Weather" ? CloudSun : name === "VATSIM" ? Radio : name === "Airport data" ? MapPin : name === "MSFS 2024" ? Activity : name === "Navigraph Charts" ? Map : name === "NewSky" ? Plane : Plug;
+  const IconFor = name => name === "SimBrief" ? Route : name === "Aviation Weather" ? CloudSun : name === "Aviation news" ? Newspaper : name === "Welcome email" ? Mail : name === "VATSIM" ? Radio : name === "Airport data" ? MapPin : name === "MSFS 2024" ? Activity : name === "Navigraph Charts" ? Map : name === "NewSky" ? Plane : Plug;
   const toneFor = state => state === "available" || state === "configured" ? "green" : state === "needs-setup" ? "amber" : "muted";
   return <>
     <SectionHeading eyebrow="EXTERNAL SERVICES" title="Connections" subtitle="A transparent view of available data providers, optional services and local simulator requirements." action={<button className="button-secondary" onClick={onRefresh}><RefreshCw size={15} /> Refresh status</button>} />

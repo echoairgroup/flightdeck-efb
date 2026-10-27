@@ -16,8 +16,31 @@ const production = process.env.NODE_ENV === "production";
 const SECRET = process.env.SESSION_SECRET || (production ? "" : "local-development-only-change-me");
 if (production && !SECRET) throw new Error("SESSION_SECRET must be configured in production.");
 
+const frontendOrigins = new Set([
+  "https://echoairgroup.github.io",
+  process.env.FRONTEND_ORIGIN || "",
+  ...(process.env.FRONTEND_ORIGINS || "").split(",")
+].map(origin => origin.trim().replace(/\/+$/, "")).filter(Boolean));
+const crossOriginFrontendEnabled = frontendOrigins.size > 0;
+
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigin = typeof origin === "string" && frontendOrigins.has(origin.replace(/\/+$/, ""));
+  if (allowedOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+    res.setHeader("Vary", "Origin");
+  }
+  if (req.method === "OPTIONS") {
+    if (origin && !allowedOrigin) return res.status(403).end();
+    return res.status(204).end();
+  }
+  next();
+});
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -43,7 +66,13 @@ const auth = (req, res, next) => {
   }
 };
 const sessionToken = user => jwt.sign({ id: user.id, username: user.username }, SECRET, { expiresIn: "30d", issuer: "flightdeck-efb" });
-const cookieOptions = { httpOnly: true, secure: production, sameSite: "lax", path: "/", maxAge: 30 * 24 * 60 * 60 * 1000 };
+const cookieOptions = {
+  httpOnly: true,
+  secure: production,
+  sameSite: production && crossOriginFrontendEnabled ? "none" : "lax",
+  path: "/",
+  maxAge: 30 * 24 * 60 * 60 * 1000
+};
 const hashSecret = value => crypto.createHash("sha256").update(String(value)).digest("hex");
 const cleanString = (value, max = 300) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const validIcao = value => /^[A-Z0-9]{4}$/.test(String(value || "").toUpperCase());
@@ -89,6 +118,222 @@ function firstValue(...values) {
   for (const value of values) if (value !== null && value !== undefined && String(value).trim() !== "") return value;
   return null;
 }
+
+function newSkyConfigured() {
+  return Boolean(String(process.env.NEWSKY_API_TOKEN || "").trim());
+}
+
+let newSkyQueue = Promise.resolve();
+let newSkyRequestTimes = [];
+async function waitForNewSkyRateLimit() {
+  const next = newSkyQueue.then(async () => {
+    let now = Date.now();
+    newSkyRequestTimes = newSkyRequestTimes.filter(timestamp => now - timestamp < 10000);
+    if (newSkyRequestTimes.length >= 4) {
+      const waitMs = Math.max(0, 10000 - (now - newSkyRequestTimes[0]) + 100);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    }
+    now = Date.now();
+    newSkyRequestTimes = newSkyRequestTimes.filter(timestamp => now - timestamp < 10000);
+    newSkyRequestTimes.push(now);
+  });
+  newSkyQueue = next.catch(() => {});
+  await next;
+}
+
+async function newSkyRequest(endpoint, options = {}) {
+  const token = String(process.env.NEWSKY_API_TOKEN || "").trim();
+  if (!token) {
+    const error = new Error("NewSky is not connected yet. Add NEWSKY_API_TOKEN to the FlyTech backend's Render environment, then redeploy.");
+    error.status = 503;
+    throw error;
+  }
+  await waitForNewSkyRateLimit();
+  const method = options.method || "GET";
+  const response = await fetch("https://newsky.app/api/airline-api" + endpoint, {
+    method,
+    headers: {
+      Accept: "application/json",
+      Authorization: "Bearer " + token,
+      ...(options.body ? { "Content-Type": "application/json" } : {})
+    },
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+    signal: AbortSignal.timeout(12000)
+  });
+  const text = await response.text();
+  let payload = null;
+  if (text) {
+    try { payload = JSON.parse(text); }
+    catch {
+      const error = new Error("NewSky returned a response that could not be read as JSON.");
+      error.status = 502;
+      throw error;
+    }
+  }
+  if (!response.ok) {
+    const error = new Error(
+      response.status === 401 || response.status === 403
+        ? "NewSky rejected the API token. Check that it is correct and includes the 'flights' permission in NewSky Airline Management."
+        : response.status === 429
+          ? "NewSky rate-limited the request. Wait a few seconds and try again."
+          : "NewSky returned HTTP " + response.status + "."
+    );
+    error.status = response.status === 401 || response.status === 403 ? 502 : response.status;
+    throw error;
+  }
+  return payload;
+}
+
+function newSkyPathValue(object, path) {
+  return String(path).split(".").reduce((value, key) => value && typeof value === "object" ? value[key] : undefined, object);
+}
+function newSkyText(value) {
+  if (value && typeof value === "object") {
+    return firstValue(value.icao, value.icaoCode, value.icao_code, value.code, value.ident, value.callsign, value.flightNumber, value.displayName, value.username, value.name, value.label, value.value, null);
+  }
+  return value;
+}
+function newSkyFirst(object, paths) {
+  for (const path of paths) {
+    const value = newSkyText(newSkyPathValue(object, path));
+    if (value !== null && value !== undefined && String(value).trim() !== "") return value;
+  }
+  return null;
+}
+function normalizeNewSkyFlight(flight, index = 0) {
+  const row = flight && typeof flight === "object" ? flight : {};
+  const departure = newSkyFirst(row, [
+    "departure.icao", "departure.icaoCode", "departure.airport.icao", "departureAirport.icao",
+    "departureAirport", "departureIcao", "departure_icao", "dep.icao", "dep", "origin.icao", "origin", "from.icao", "from"
+  ]);
+  const arrival = newSkyFirst(row, [
+    "arrival.icao", "arrival.icaoCode", "arrival.airport.icao", "arrivalAirport.icao",
+    "arrivalAirport", "arrivalIcao", "arrival_icao", "arr.icao", "arr", "destination.icao", "destination", "to.icao", "to"
+  ]);
+  const rating = newSkyFirst(row, ["rating.score", "rating.stars", "rating.value", "rating", "score", "stars"]);
+  const distance = newSkyFirst(row, ["distanceNm", "distance_nm", "distance", "route.distance"]);
+  return {
+    id: String(newSkyFirst(row, ["id", "flightId", "flight_id", "_id", "uuid"]) ?? ""),
+    flightNumber: String(newSkyFirst(row, ["flightNumber", "flight_number", "number", "callsign", "route.flightNumber", "route.name", "flight"]) ?? ""),
+    departure: String(departure ?? "—"),
+    arrival: String(arrival ?? "—"),
+    aircraft: String(newSkyFirst(row, ["aircraft.icao", "aircraft.icaoCode", "aircraft.type", "aircraft.name", "aircraftType", "aircraft_type", "aircraft"]) ?? ""),
+    pilot: String(newSkyFirst(row, ["pilot.displayName", "pilot.username", "pilot.name", "pilotName", "pilot_name", "username", "user.displayName", "user.username", "user.name"]) ?? ""),
+    status: String(newSkyFirst(row, ["status.label", "status.name", "status", "state", "phase"]) ?? ""),
+    date: String(newSkyFirst(row, ["date", "flightDate", "flight_date", "startedAt", "startTime", "departureTime", "createdAt", "created_at", "scheduledDeparture", "timestamp"]) ?? ""),
+    duration: String(newSkyFirst(row, ["duration.formatted", "durationMinutes", "duration_minutes", "duration", "flightTime", "flight_time", "flightDuration", "blockTime", "block_time"]) ?? ""),
+    distanceNm: numericOrNull(distance),
+    rating: rating === null ? null : String(rating)
+  };
+}
+function newSkyFlightList(payload) {
+  if (Array.isArray(payload)) return payload;
+  const candidates = [payload?.results, payload?.flights, payload?.data?.results, payload?.data?.flights, payload?.data];
+  return candidates.find(Array.isArray) || [];
+}
+function newSkyTotal(payload, fallback) {
+  const value = firstValue(payload?.totalResults, payload?.total_results, payload?.total, payload?.data?.totalResults, payload?.data?.total_results, fallback);
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+function newSkyDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date : null;
+}
+function sendNewSkyError(res, error) {
+  const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 502;
+  if (status >= 500) console.warn("NewSky request failed:", error?.message || "Unknown error");
+  return res.status(status).json({ error: error?.message || "NewSky is temporarily unavailable." });
+}
+
+const NEWS_FEEDS = [
+  {
+    category: "aviation",
+    url: "https://news.google.com/rss/search?q=airline+OR+aviation+OR+airport+when%3A7d&hl=en-GB&gl=GB&ceid=GB%3Aen"
+  },
+  {
+    category: "simulation",
+    url: "https://news.google.com/rss/search?q=%22Microsoft+Flight+Simulator%22+OR+X-Plane+OR+%22flight+simulation%22+when%3A30d&hl=en-GB&gl=GB&ceid=GB%3Aen"
+  }
+];
+
+function decodeXmlText(value = "") {
+  return String(value)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_match, code) => {
+      const number = Number(code);
+      return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : "";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => {
+      const number = parseInt(code, 16);
+      return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : "";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function xmlTagValue(xml, tag) {
+  const match = xml.match(new RegExp("<" + tag + "(?:\\s[^>]*)?>([\\s\\S]*?)</" + tag + ">", "i"));
+  return match ? decodeXmlText(match[1]) : "";
+}
+
+function parseNewsFeed(xml, category) {
+  const items = [...String(xml).matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)];
+  return items.map(match => {
+    const block = match[1];
+    const title = xmlTagValue(block, "title");
+    const rawLink = xmlTagValue(block, "link");
+    let link = "";
+    try {
+      const parsed = new URL(rawLink);
+      if (parsed.protocol === "https:") link = parsed.toString();
+    } catch {}
+    const publishedAtRaw = xmlTagValue(block, "pubDate");
+    const publishedAt = publishedAtRaw && Number.isFinite(Date.parse(publishedAtRaw)) ? new Date(publishedAtRaw).toISOString() : null;
+    const summary = xmlTagValue(block, "description").slice(0, 420);
+    const source = xmlTagValue(block, "source").slice(0, 100) || "Google News";
+    return { title: title.slice(0, 240), link, publishedAt, summary, source, category };
+  }).filter(item => item.title && item.link);
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
+async function sendWelcomeEmail(user) {
+  if (!user?.email || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return false;
+  const displayName = escapeHtml(user.display_name || user.username || "pilot");
+  const text = "Welcome to FlyTech, " + (user.display_name || user.username || "pilot") + "! Your account is ready. Sign in to explore flight planning, weather, logbook tools, community events and the MSFS 2024 companion setup guide. Fly safe, and enjoy your next flight.\n\nFlyTech";
+  const html = '<!doctype html><html><body style="margin:0;background:#f4f8fb;font-family:Arial,sans-serif;color:#182c3e;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e1eaf0;border-radius:18px;padding:32px"><div style="font-weight:800;letter-spacing:.12em;color:#267dc3;font-size:13px">FLYTECH</div><h1 style="font-size:28px;line-height:1.2;margin:22px 0 12px">Welcome aboard, ' + displayName + '.</h1><p style="font-size:15px;line-height:1.7;color:#41596d">Your FlyTech account is ready. We built your workspace to bring flight planning, aviation weather, flight records, simulator telemetry and the flight-sim community together in one place.</p><div style="background:#e9f5fb;border-radius:12px;padding:18px;margin:22px 0"><strong>Your next steps</strong><p style="margin:8px 0 0;line-height:1.7;color:#41596d">Import an existing SimBrief briefing, set your preferred aircraft, or open the MSFS 2024 setup guide to pair the Windows companion.</p></div><p style="font-size:13px;color:#657d90;line-height:1.6">FlyTech is built for flight simulation. Always verify important procedures and data with your aircraft add-on documentation and official sources.</p><p style="margin-top:28px;font-size:13px;color:#657d90">See you in the virtual skies,<br/><strong>The FlyTech team</strong></p></main></body></html>';
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + process.env.RESEND_API_KEY,
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM,
+      to: [user.email],
+      subject: "Welcome to FlyTech — your flight desk is ready",
+      text,
+      html
+    }),
+    signal: AbortSignal.timeout(7000)
+  });
+  if (!response.ok) throw new Error("Email provider returned HTTP " + response.status + ".");
+  return true;
+}
+
 function coordinate(value, min, max) {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
@@ -173,7 +418,7 @@ app.get("/api/health", async (req, res) => {
   if (pool) {
     try { await query("SELECT 1"); database = true; } catch {}
   }
-  res.json({ ok: true, service: "flightdeck-efb", version: "2.1.0", database, environment: production ? "production" : "development" });
+  res.json({ ok: true, service: "flightdeck-efb", version: "2.2.0", database, environment: production ? "production" : "development" });
 });
 
 app.get("/api/auth/me", async (req, res) => {
@@ -196,12 +441,17 @@ app.post("/api/auth/register", registerLimiter, async (req, res) => {
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!/^[a-z0-9_.-]{3,24}$/.test(username)) return res.status(400).json({ error: "Username must be 3–24 characters and use letters, numbers, dots, underscores or hyphens." });
   if (password.length < 8 || password.length > 128) return res.status(400).json({ error: "Password must contain between 8 and 128 characters." });
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address or leave it empty." });
+  if (!email) return res.status(400).json({ error: "Enter an email address so FlyTech can send your welcome message." });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address." });
   try {
     const hash = await bcrypt.hash(password, 12);
     const result = await query("INSERT INTO users(username,email,display_name,password_hash) VALUES($1,$2,$3,$4) RETURNING id,username,email,display_name,created_at", [username, email, displayName, hash]);
+    const welcomeEmailConfigured = Boolean(result.rows[0].email && process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
     res.cookie("fd_session", sessionToken(result.rows[0]), cookieOptions);
-    res.status(201).json({ user: publicUser(result.rows[0]) });
+    res.status(201).json({ user: publicUser(result.rows[0]), welcomeEmail: welcomeEmailConfigured ? "enabled" : "not-configured" });
+    if (welcomeEmailConfigured) {
+      void sendWelcomeEmail(result.rows[0]).catch(error => console.warn("Welcome email delivery failed:", error.message));
+    }
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "That username or email is already in use." });
     console.error("Registration failed:", error.message);
@@ -433,17 +683,74 @@ app.get("/api/network/vatsim", async (req, res) => {
   }
 });
 
+
+app.get("/api/newsky/ongoing", auth, async (req, res) => {
+  try {
+    const payload = await cached("newsky:ongoing", 15000, () => newSkyRequest("/flights/ongoing"));
+    const rows = newSkyFlightList(payload);
+    res.json({ flights: rows.map(normalizeNewSkyFlight), totalResults: newSkyTotal(payload, rows.length), fetchedAt: new Date().toISOString(), source: "NewSky" });
+  } catch (error) { sendNewSkyError(res, error); }
+});
+
+app.get("/api/newsky/recent", auth, async (req, res) => {
+  const count = Number(req.query.count ?? 50);
+  const skip = Number(req.query.skip ?? 0);
+  if (!Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(skip) || skip < 0 || skip > 1000000) {
+    return res.status(400).json({ error: "Use count between 1 and 100 and a non-negative skip value." });
+  }
+  try {
+    const payload = await cached("newsky:recent:" + count + ":" + skip, 20000, () => newSkyRequest("/flights/recent", { method: "POST", body: { count, skip, includeDeleted: false } }));
+    const rows = newSkyFlightList(payload);
+    res.json({ flights: rows.map(normalizeNewSkyFlight), totalResults: newSkyTotal(payload, rows.length), fetchedAt: new Date().toISOString(), source: "NewSky" });
+  } catch (error) { sendNewSkyError(res, error); }
+});
+
+app.post("/api/newsky/bydate", auth, async (req, res) => {
+  const start = newSkyDate(req.body?.start);
+  const end = newSkyDate(req.body?.end);
+  if (!start || !end) return res.status(400).json({ error: "Choose valid start and end dates." });
+  const spanDays = (end.getTime() - start.getTime()) / 86400000;
+  if (spanDays < 0) return res.status(400).json({ error: "The end date must be on or after the start date." });
+  if (spanDays > 30) return res.status(400).json({ error: "NewSky allows a maximum 30-day date range. Choose a shorter period." });
+  const count = Number(req.body?.count ?? 100);
+  const skip = Number(req.body?.skip ?? 0);
+  if (!Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(skip) || skip < 0 || skip > 1000000) {
+    return res.status(400).json({ error: "Use count between 1 and 100 and a non-negative skip value." });
+  }
+  const key = "newsky:bydate:" + req.body.start + ":" + req.body.end + ":" + count + ":" + skip;
+  try {
+    const payload = await cached(key, 30000, () => newSkyRequest("/flights/bydate", {
+      method: "POST",
+      body: { start: req.body.start, end: req.body.end, count, skip, includeDeleted: false }
+    }));
+    const rows = newSkyFlightList(payload);
+    res.json({ flights: rows.map(normalizeNewSkyFlight), totalResults: newSkyTotal(payload, rows.length), start: req.body.start, end: req.body.end, fetchedAt: new Date().toISOString(), source: "NewSky" });
+  } catch (error) { sendNewSkyError(res, error); }
+});
+
+app.get("/api/newsky/flight/:id", auth, async (req, res) => {
+  const id = cleanString(req.params.id, 120);
+  if (!/^[a-zA-Z0-9_.-]{1,120}$/.test(id)) return res.status(400).json({ error: "Invalid NewSky flight identifier." });
+  try {
+    const payload = await cached("newsky:flight:" + id, 15000, () => newSkyRequest("/flight/" + encodeURIComponent(id)));
+    const rawFlight = payload?.flight || payload?.data?.flight || payload?.data || payload;
+    res.json({ flight: normalizeNewSkyFlight(rawFlight), fetchedAt: new Date().toISOString(), source: "NewSky" });
+  } catch (error) { sendNewSkyError(res, error); }
+});
+
 app.get("/api/integrations/status", (req, res) => {
   res.json({
     generatedAt: new Date().toISOString(),
     integrations: [
-      { name: "SimBrief", status: "available", label: "AVAILABLE", description: "Imports the latest OFP by Pilot ID or username through SimBrief's public fetch endpoint.", detail: "FlightDeck does not generate a new SimBrief OFP.", url: "https://beta.docs.navigraph.com/simbrief/fetching-ofp-data" },
+      { name: "SimBrief", status: "available", label: "AVAILABLE", description: "Imports the latest OFP by Pilot ID or username through SimBrief's public fetch endpoint.", detail: "FlyTech imports an existing OFP; it does not generate a new SimBrief briefing.", url: "https://beta.docs.navigraph.com/simbrief/fetching-ofp-data" },
       { name: "Aviation Weather", status: "available", label: "PUBLIC API", description: "Fetches METAR observations and TAF forecasts when the provider has a current record.", detail: "Subject to upstream availability and rate limits.", url: "https://aviationweather.gov/data/api/" },
       { name: "VATSIM", status: "available", label: "PUBLIC FEED", description: "Loads the public network data feed with actual pilots and controllers.", detail: "This does not connect a user to the VATSIM network.", url: "https://data.vatsim.net/" },
+      { name: "Aviation news", status: "available", label: "PUBLIC FEEDS", description: "Fetches recent aviation and flight-simulation headlines from public RSS searches.", detail: "The feed is cached briefly and can be unavailable when an external provider is down.", url: "https://news.google.com/" },
+      { name: "Welcome email", status: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "configured" : "needs-setup", label: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "CONFIGURED" : "OPTIONAL SETUP", description: "Sends a welcome note through Resend after new account creation.", detail: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "Server-side Resend credentials and sender are present." : "Optional: configure RESEND_API_KEY and EMAIL_FROM in the server environment. A verified sender domain is required.", url: "https://resend.com/docs/send-with-nodejs" },
       { name: "Airport data", status: process.env.AIRPORTDB_TOKEN ? "configured" : "needs-setup", label: process.env.AIRPORTDB_TOKEN ? "ENRICHMENT ENABLED" : "BASIC LOOKUP", description: "Airport data is fetched from provider responses; AirportDB may add runway and frequency detail.", detail: process.env.AIRPORTDB_TOKEN ? "Server-side AirportDB token detected." : "Add AIRPORTDB_TOKEN to the server environment for enriched airport data.", url: "https://airportdb.io/" },
       { name: "MSFS 2024", status: "needs-setup", label: "LOCAL COMPANION", description: "The Windows companion reads simulator variables through Microsoft's SimConnect SDK and uploads account-scoped telemetry.", detail: "Not connected until you build, run and pair the companion on the simulator PC.", url: "https://docs.flightsimulator.com/msfs2024/retail/programming-apis/simconnect/simconnect-sdk/" },
-      { name: "Navigraph Charts", status: "needs-setup", label: "ACCESS REQUIRED", description: "Licensed aeronautical charts are not embedded in this release.", detail: "Provider access and user entitlement are required; no chart data is fabricated.", url: "https://developers.navigraph.com/docs/request-access" },
-      { name: "NewSky", status: process.env.NEWSKY_API_TOKEN ? "configured" : "needs-setup", label: process.env.NEWSKY_API_TOKEN ? "TOKEN DETECTED" : "NOT CONNECTED", description: "Airline synchronisation can use a valid server-side NewSky token.", detail: process.env.NEWSKY_API_TOKEN ? "Token detected; airline-specific synchronisation is not implemented yet." : "No NewSky token configured.", url: "https://newsky.app/apidocs/" },
+      { name: "MSFS Online Flight Planner", status: "available", label: "OFFICIAL WEB PLANNER", description: "Open Microsoft Flight Simulator 2024’s official online planner for route planning, charts, weather and radio-navigation information.", detail: "Opens Microsoft’s planner in a new tab. Sign-in access may require an Xbox account linked to MSFS 2024.", url: "https://planner.flightsimulator.com/" },
+      { name: "NewSky", status: newSkyConfigured() ? "configured" : "needs-setup", label: newSkyConfigured() ? "TOKEN CONFIGURED" : "API KEY REQUIRED", description: "Read-only access to ongoing and recent airline flights, plus date-range history.", detail: newSkyConfigured() ? "A server-side token is present. Open NewSky flights to test its permissions and view flight records." : "Add NEWSKY_API_TOKEN to the Render backend. The key must include the flights permission.", url: "https://newsky.app/apidocs/" },
       { name: "X-Plane", status: "planned", label: "NOT IMPLEMENTED", description: "A separate local telemetry adapter is needed before X-Plane data can be read.", detail: "This release does not claim live X-Plane telemetry." }
     ]
   });
@@ -742,6 +1049,35 @@ app.delete("/api/events/:id/rsvp", auth, async (req, res) => {
   const result = await query("DELETE FROM event_rsvps WHERE event_id=$1 AND user_id=$2 RETURNING event_id", [req.params.id,req.user.id]);
   if (!result.rowCount) return res.status(404).json({ error: "You do not have an RSVP for this event." });
   res.json({ ok: true });
+});
+
+app.get("/api/news", async (req, res) => {
+  const results = await Promise.all(NEWS_FEEDS.map(async feed => {
+    try {
+      const parsed = await cached("flytech-news:" + feed.category, 10 * 60 * 1000, async () => {
+        const response = await fetch(feed.url, {
+          headers: { Accept: "application/rss+xml, application/xml, text/xml", "User-Agent": "FlyTech/2.2 (+flight simulation workspace)" },
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) throw new Error("News source returned HTTP " + response.status + ".");
+        const xml = await response.text();
+        return parseNewsFeed(xml, feed.category);
+      });
+      return { articles: parsed, error: null };
+    } catch (error) {
+      return { articles: [], error: error.message };
+    }
+  }));
+  const seen = new Set();
+  const articles = results.flatMap(result => result.articles).filter(article => {
+    const key = article.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0)).slice(0, 36);
+  if (!articles.length) return res.status(502).json({ error: "External news feeds are temporarily unavailable." });
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  res.json({ articles, updatedAt: new Date().toISOString(), sourceCount: results.filter(result => result.articles.length).length });
 });
 
 app.use("/api", (req, res) => res.status(404).json({ error: "This API endpoint does not exist." }));

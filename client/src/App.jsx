@@ -565,7 +565,12 @@ function App() {
         {page === "logbook" && <Logbook flights={flights} plans={plans} saveFlight={saveManualFlight} navigate={navigate} />}
         {page === "scratch" && <Scratchpad value={scratch} setValue={value => { setScratch(value); setScratchSaved(false); localStorage.setItem("fd-scratch", value); }} save={saveScratchpad} saved={scratchSaved} user={user} />}
         {page === "integrations" && <Integrations status={integrations} error={integrations?.error} onRefresh={() => api("/integrations/status").then(setIntegrations).catch(error => setIntegrations({ error: error.message, integrations: [] }))} navigate={navigate} />}
-        {page === "settings" && <Settings user={user} setUser={setUser} onSignedIn={loadPrivateData} theme={theme} setTheme={setTheme} aircraft={aircraft} setAircraft={updateAircraft} signOut={signOut} pairingCode={pairingCode} generatePairingCode={generatePairingCode} health={health} />}
+        {page === "simulator" && <PairingGuide user={user} health={health} pairingCode={pairingCode} generatePairingCode={generatePairingCode} navigate={navigate} notify={notify} />}
+        {page === "news" && <NewsPage />}
+        {page === "airlines" && <AirlinesPage user={user} navigate={navigate} notify={notify} />}
+        {page === "events" && <CommunityPage user={user} navigate={navigate} notify={notify} />}
+        {page === "learn" && <AcademyPage navigate={navigate} />}
+        {page === "settings" && <Settings user={user} setUser={setUser} onSignedIn={loadPrivateData} theme={theme} setTheme={setTheme} aircraft={aircraft} setAircraft={updateAircraft} signOut={signOut} pairingCode={pairingCode} generatePairingCode={generatePairingCode} health={health} navigate={navigate} />}
       </div>
     </main>
 
@@ -1077,6 +1082,304 @@ function Settings({ user, setUser, onSignedIn, theme, setTheme, aircraft, setAir
         <Panel title="Connection status" subtitle="Current environment checks"><div className="connection-status-list"><div><span>API process</span><Pill tone={health?.ok ? "green" : "amber"}>{health?.ok ? "Responding" : "Unavailable"}</Pill></div><div><span>Database</span><Pill tone={health?.database ? "green" : "amber"}>{health?.database ? "Connected" : "Not configured"}</Pill></div><div><span>Account</span><Pill tone={user ? "green" : "muted"}>{user ? "Signed in" : "Guest"}</Pill></div></div></Panel>
       </aside>
     </div>
+  </>;
+}
+
+
+
+function NewsPage() {
+  const [articles, setArticles] = useState([]);
+  const [category, setCategory] = useState("all");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api("/news");
+      setArticles(result.articles || []);
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const filtered = articles.filter(article => {
+    const matchesCategory = category === "all" || article.category === category;
+    const searchable = [article.title, article.source, article.summary].join(" ").toLowerCase();
+    return matchesCategory && searchable.includes(search.toLowerCase());
+  });
+  return <>
+    <SectionHeading eyebrow="THE FLYTECH BRIEFING" title="Aviation news" subtitle="A live reading list for airline operations, aviation technology and flight simulation. Articles open at their original publishers." action={<button className="button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh feed</button>} />
+    <div className="news-intro">
+      <div className="news-intro-icon"><Newspaper size={22} /></div>
+      <div><strong>Stay current between flights</strong><p>Stories are fetched from public news feeds and cached briefly to keep the page responsive. FlyTech does not write or alter publisher articles.</p></div>
+      <div className="news-intro-meta"><span className="status-dot green" /> Public RSS feed</div>
+    </div>
+    <div className="news-tools">
+      <div className="filter-tabs" aria-label="Filter news">
+        {[["all", "All stories"], ["aviation", "Aviation"], ["simulation", "Flight simulation"]].map(([value, label]) => <button key={value} className={category === value ? "active" : ""} onClick={() => setCategory(value)}>{label}</button>)}
+      </div>
+      <label className="news-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search headlines or publishers" /></label>
+    </div>
+    {error && <div className="notice notice-error"><AlertCircle size={16} /><span>{error} The news provider may be temporarily unavailable; try again in a moment.</span></div>}
+    {loading ? <EmptyState icon={Newspaper} title="Loading the briefing" text="Fetching current stories from the public news feeds." /> : filtered.length ? <div className="news-grid">
+      {filtered.map((article, index) => <article className="news-card" key={article.link || article.title || index}>
+        <div className="news-card-meta"><span className="news-source">{article.source || "External publisher"}</span><Pill tone={article.category === "simulation" ? "blue" : "muted"}>{article.category === "simulation" ? "SIMULATION" : "AVIATION"}</Pill></div>
+        <h2>{article.title}</h2>
+        {article.summary && <p>{article.summary}</p>}
+        <div className="news-card-footer"><time>{formatDate(article.publishedAt)}</time><a href={article.link} target="_blank" rel="noreferrer">Read original <ArrowUpRight size={14} /></a></div>
+      </article>)}
+    </div> : <EmptyState icon={Newspaper} title={error ? "The briefing is unavailable" : "No matching stories"} text={error ? "The feed did not return any current stories. Your other FlyTech tools are unaffected." : "Try another category or clear the search field."} action={error ? <button className="button-secondary" onClick={() => void load()}><RefreshCw size={14} /> Try again</button> : undefined} />}
+    <p className="provider-footnote">External news can contain errors or opinions. Check the original publisher for full context; headlines and summaries are not operational flight information.</p>
+  </>;
+}
+
+function PairingGuide({ user, health, pairingCode, generatePairingCode, navigate, notify }) {
+  const [copied, setCopied] = useState(false);
+  const copyCode = async () => {
+    if (!pairingCode?.code) return;
+    try {
+      await navigator.clipboard.writeText(pairingCode.code);
+      setCopied(true);
+      if (notify) notify("Pairing code copied.");
+    } catch {
+      if (notify) notify("Clipboard access is unavailable. Select and copy the code manually.", "error");
+    }
+  };
+  return <>
+    <SectionHeading eyebrow="SIMULATOR CONNECTION" title="Connect MSFS 2024" subtitle="Pair the Windows companion once, then keep FlyTech open on your PC, tablet or phone while you fly." action={<a className="button-secondary" href="https://github.com/echoairgroup/flightdeck-efb/tree/build/real-efb-platform/companion/msfs-bridge" target="_blank" rel="noreferrer"><FileText size={15} /> Companion guide <ExternalLink size={13} /></a>} />
+    <div className="pairing-hero">
+      <div className="pairing-hero-icon"><Activity size={26} /></div>
+      <div className="pairing-hero-copy"><span className="eyebrow">HOW THE CONNECTION WORKS</span><h2>Your simulator stays on your PC.</h2><p>MSFS 2024 exposes aircraft data through SimConnect. A small Windows companion reads supported values and sends them over HTTPS to your FlyTech account. The website itself cannot inspect the simulator on another device.</p></div>
+      <div className="pairing-hero-status"><Pill tone={health?.database && user ? "green" : "amber"}>{health?.database && user ? "READY TO PAIR" : user ? "DATABASE CHECK NEEDED" : "SIGN IN FIRST"}</Pill><span>{health?.database ? "Cloud storage responding" : "Cloud storage not confirmed"}</span></div>
+    </div>
+    {!user && <div className="notice notice-info"><LockKeyhole size={17} /><span>Sign in to your FlyTech account before generating a pairing code. <button className="inline-link" onClick={() => navigate("settings")}>Open account settings</button></span></div>}
+    <div className="pairing-guide-grid">
+      <Panel title="Before you start" subtitle="Check these requirements on the simulator PC">
+        <div className="pairing-checklist">
+          <div><CheckCircle2 size={18} /><span><strong>Windows PC</strong><small>The companion must run on the same PC as MSFS 2024.</small></span></div>
+          <div><CheckCircle2 size={18} /><span><strong>MSFS 2024 SDK</strong><small>Install it through Developer Mode in the simulator.</small></span></div>
+          <div><CheckCircle2 size={18} /><span><strong>Visual Studio</strong><small>Install the .NET desktop workload and .NET Framework 4.8 targeting pack.</small></span></div>
+          <div><CheckCircle2 size={18} /><span><strong>Cloud account</strong><small>Your signed-in account and FlyTech database must both be available.</small></span></div>
+        </div>
+        <a className="source-link pairing-resource-link" href="https://docs.flightsimulator.com/msfs2024/retail/programming-apis/simconnect/simconnect-sdk/" target="_blank" rel="noreferrer">Microsoft SimConnect documentation <ExternalLink size={13} /></a>
+      </Panel>
+      <Panel title="Pair your device" subtitle="Use a one-time code that expires after five minutes">
+        <ol className="pairing-steps">
+          <li><span>1</span><div><strong>Sign in here</strong><p>Use the FlyTech account that should own this simulator connection.</p></div></li>
+          <li><span>2</span><div><strong>Generate the code</strong><p>Create a short-lived code below. It can be used once and should not be shared.</p></div></li>
+          <li><span>3</span><div><strong>Open the Windows companion</strong><p>Enter the public HTTPS URL of this website and the code in the companion window.</p></div></li>
+          <li><span>4</span><div><strong>Load into a flight</strong><p>Keep the companion running after MSFS is open and a flight is loaded.</p></div></li>
+          <li><span>5</span><div><strong>Confirm live data</strong><p>Return to Overview. Status only changes to connected after genuine telemetry reaches the server.</p></div></li>
+        </ol>
+        {user ? <div className="pairing-code-actions">
+          <button className="button-primary" onClick={() => { setCopied(false); generatePairingCode(); }} disabled={!health?.database}><Zap size={15} /> Generate one-time code</button>
+          {!health?.database && <small>Pairing is disabled until the cloud database responds.</small>}
+          {pairingCode && <div className="pairing-code-box pairing-code-large"><span>ONE-TIME PAIRING CODE</span><strong>{pairingCode.code}</strong><small>Expires {pairingCode.expiresAt ? new Date(pairingCode.expiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "in five minutes"} · single use</small><button className="button-secondary" onClick={copyCode}><FileText size={14} /> {copied ? "Copied" : "Copy code"}</button></div>}
+        </div> : <button className="button-primary" onClick={() => navigate("settings")}><LogIn size={15} /> Sign in to continue</button>}
+      </Panel>
+    </div>
+    <Panel title="Troubleshooting" subtitle="The checks that solve most pairing issues">
+      <div className="troubleshooting-grid">
+        <div><strong>Code rejected or expired</strong><p>Generate a new code and enter it once. Pairing codes expire after five minutes.</p></div>
+        <div><strong>Companion cannot open SimConnect</strong><p>Start MSFS 2024 first, confirm the managed SimConnect reference points to your installed SDK, then rebuild the Release x64 configuration.</p></div>
+        <div><strong>Pairing works but values do not update</strong><p>Load into an actual flight, keep the companion running, and confirm the website URL uses HTTPS and its health endpoint reports database true.</p></div>
+        <div><strong>You changed accounts or lost a device</strong><p>Pairing is user-specific. Revoke the old companion token/device before pairing a replacement if the token may be exposed.</p></div>
+      </div>
+    </Panel>
+    <div className="pairing-disclaimer"><ShieldCheck size={17} /><p>FlyTech is built for flight simulation, not certified navigation. Telemetry is account-scoped, and a connected status is shown only after the server receives real data. Use your aircraft add-on documentation and official sources for operational procedures.</p></div>
+  </>;
+}
+
+function AirlinesPage({ user, navigate, notify }) {
+  const [airlines, setAirlines] = useState([]);
+  const [mine, setMine] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: "", icao_code: "", iata_code: "", callsign: "", base_icao: "", description: "" });
+  const [openId, setOpenId] = useState(null);
+  const [details, setDetails] = useState({});
+  const [busyId, setBusyId] = useState(null);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api("/airlines");
+      setAirlines(result.airlines || []);
+      if (user) {
+        try {
+          const membership = await api("/airlines/mine");
+          setMine(membership.airlines || []);
+        } catch { setMine([]); }
+      } else setMine([]);
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally { setLoading(false); }
+  }, [user]);
+  useEffect(() => { void load(); }, [load]);
+  const filtered = airlines.filter(item => [item.name, item.slug, item.icao_code, item.base_icao, item.description].join(" ").toLowerCase().includes(search.toLowerCase()));
+  const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+  const createAirline = async event => {
+    event.preventDefault();
+    setCreating(true);
+    try {
+      await api("/airlines", { method: "POST", body: JSON.stringify(form) });
+      setForm({ name: "", icao_code: "", iata_code: "", callsign: "", base_icao: "", description: "" });
+      setFormOpen(false);
+      await load();
+      notify("Virtual airline created.");
+    } catch (createError) { notify(createError.message, "error"); }
+    finally { setCreating(false); }
+  };
+  const joinAirline = async item => {
+    if (!user) { navigate("settings"); return; }
+    setBusyId(item.id);
+    try { await api("/airlines/" + encodeURIComponent(item.id) + "/join", { method: "POST", body: JSON.stringify({}) }); await load(); notify("You joined " + item.name + "."); }
+    catch (joinError) { notify(joinError.message, "error"); }
+    finally { setBusyId(null); }
+  };
+  const toggleDetails = async item => {
+    if (String(openId) === String(item.id)) { setOpenId(null); return; }
+    setOpenId(item.id);
+    if (details[item.id]) return;
+    try { const result = await api("/airlines/" + encodeURIComponent(item.id)); setDetails(prev => ({ ...prev, [item.id]: result })); }
+    catch (detailError) { notify(detailError.message, "error"); }
+  };
+  return <>
+    <SectionHeading eyebrow="VIRTUAL AVIATION" title="Virtual airlines" subtitle="Find a group to fly with, explore its fleet and routes, or create an airline for your own community." action={<button className="button-primary" onClick={() => user ? setFormOpen(value => !value) : navigate("settings")}><Plus size={15} /> {user ? "Create airline" : "Sign in to create"}</button>} />
+    {formOpen && <Panel title="Create a virtual airline" subtitle="Start with the basics. You can build your fleet and route list after creation.">
+      <form className="airline-create-form" onSubmit={createAirline}>
+        <Field label="Airline name"><input value={form.name} onChange={event => setField("name", event.target.value)} minLength={3} maxLength={80} placeholder="Example: Skyway Virtual" required /></Field>
+        <Field label="ICAO code" hint="Optional · three characters"><input value={form.icao_code} onChange={event => setField("icao_code", event.target.value.toUpperCase())} maxLength={3} placeholder="SKY" /></Field>
+        <Field label="IATA code" hint="Optional · two characters"><input value={form.iata_code} onChange={event => setField("iata_code", event.target.value.toUpperCase())} maxLength={2} placeholder="SW" /></Field>
+        <Field label="Callsign"><input value={form.callsign} onChange={event => setField("callsign", event.target.value)} maxLength={32} placeholder="Skyway" /></Field>
+        <Field label="Home base" hint="ICAO airport code"><input value={form.base_icao} onChange={event => setField("base_icao", event.target.value.toUpperCase())} maxLength={4} placeholder="EHAM" /></Field>
+        <Field label="Short description"><input value={form.description} onChange={event => setField("description", event.target.value)} maxLength={500} placeholder="What makes your airline special?" /></Field>
+        <div className="airline-create-actions"><button type="button" className="button-secondary" onClick={() => setFormOpen(false)}>Cancel</button><button className="button-primary" type="submit" disabled={creating}>{creating ? "Creating…" : "Create airline"}</button></div>
+      </form>
+    </Panel>}
+    <div className="airline-toolbar"><label className="news-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by airline, base or code" /></label><span>{airlines.length} listed {airlines.length === 1 ? "airline" : "airlines"}</span></div>
+    {!user && <div className="notice notice-info"><Users size={17} /><span>You can browse airlines without signing in. Sign in to create an airline or join a crew.</span></div>}
+    {error && <div className="notice notice-error"><AlertCircle size={16} />{error}</div>}
+    {loading ? <EmptyState icon={Building2} title="Loading airlines" text="Fetching public airline directories." /> : filtered.length ? <div className="airline-grid">
+      {filtered.map(item => {
+        const joined = mine.some(membership => String(membership.id) === String(item.id));
+        const detail = details[item.id];
+        return <article className="airline-card" key={item.id}>
+          <div className="airline-card-top"><div className="airline-emblem"><Plane size={22} /></div><Pill tone={joined ? "green" : "muted"}>{joined ? "YOUR AIRLINE" : "VIRTUAL AIRLINE"}</Pill></div>
+          <h2>{item.name}</h2><p>{item.description || "A virtual airline community for flight-simulation pilots."}</p>
+          <div className="airline-identifiers">{item.icao_code && <span><small>ICAO</small><strong>{item.icao_code}</strong></span>}{item.iata_code && <span><small>IATA</small><strong>{item.iata_code}</strong></span>}{item.base_icao && <span><small>BASE</small><strong>{item.base_icao}</strong></span>}</div>
+          <div className="airline-stats"><span><Users size={14} /> {item.member_count || 0} pilots</span><span><Plane size={14} /> {item.fleet_count || 0} aircraft</span><span><Route size={14} /> {item.route_count || 0} routes</span></div>
+          <div className="airline-card-actions"><button className="button-secondary" onClick={() => void toggleDetails(item)}>{String(openId) === String(item.id) ? "Hide details" : "Explore airline"} <ChevronRight size={14} /></button>{!joined && <button className="button-primary" onClick={() => void joinAirline(item)} disabled={busyId === item.id}>{busyId === item.id ? "Joining…" : "Join crew"}</button>}</div>
+          {String(openId) === String(item.id) && <div className="airline-detail">
+            {!detail ? <p>Loading airline details…</p> : <>
+              <strong>Fleet</strong>{detail.fleet?.length ? <ul>{detail.fleet.map(aircraft => <li key={aircraft.id}>{aircraft.aircraft_icao} {aircraft.aircraft_name || ""}{aircraft.registration ? " · " + aircraft.registration : ""}</li>)}</ul> : <p>No aircraft have been listed yet.</p>}
+              <strong>Routes</strong>{detail.routes?.length ? <ul>{detail.routes.map(route => <li key={route.id}>{route.flight_number ? route.flight_number + " · " : ""}{route.dep} → {route.arr}{route.aircraft_icao ? " · " + route.aircraft_icao : ""}</li>)}</ul> : <p>No routes have been listed yet.</p>}
+              <strong>Crew</strong><p>{(detail.members || []).length ? detail.members.map(member => member.display_name || member.username).join(", ") : "No crew members listed yet."}</p>
+            </>}
+          </div>}
+        </article>;
+      })}
+    </div> : <EmptyState icon={Building2} title="No airlines found" text={error ? "Public listings are not available until cloud storage is configured." : "Try another search, or create the first airline for your community."} action={user && !error ? <button className="button-primary" onClick={() => setFormOpen(true)}><Plus size={14} /> Create airline</button> : undefined} />}
+  </>;
+}
+
+function CommunityPage({ user, navigate, notify }) {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const localDateTime = value => {
+    const date = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+    return date.toISOString().slice(0, 16);
+  };
+  const [form, setForm] = useState(() => ({ title: "", description: "", event_type: "group_flight", location: "", start_at: localDateTime(new Date(Date.now() + 86400000)), end_at: localDateTime(new Date(Date.now() + 90000000)) }));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try { const result = await api("/events"); setEvents(result.events || []); }
+    catch (loadError) { setError(loadError.message); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+  const createEvent = async event => {
+    event.preventDefault();
+    setCreating(true);
+    try {
+      await api("/events", { method: "POST", body: JSON.stringify({ ...form, start_at: new Date(form.start_at).toISOString(), end_at: new Date(form.end_at).toISOString() }) });
+      setFormOpen(false);
+      setForm(prev => ({ ...prev, title: "", description: "", location: "" }));
+      await load();
+      notify("Community event published.");
+    } catch (createError) { notify(createError.message, "error"); }
+    finally { setCreating(false); }
+  };
+  const rsvp = async (eventItem, status) => {
+    if (!user) { navigate("settings"); return; }
+    try {
+      if (!status) await api("/events/" + encodeURIComponent(eventItem.id) + "/rsvp", { method: "DELETE" });
+      else await api("/events/" + encodeURIComponent(eventItem.id) + "/rsvp", { method: "POST", body: JSON.stringify({ status }) });
+      await load();
+      notify(status === "going" ? "You are on the attendee list." : status === "interested" ? "Event saved as interesting." : "Your RSVP was removed.");
+    } catch (rsvpError) { notify(rsvpError.message, "error"); }
+  };
+  const removeEvent = async eventItem => {
+    if (!window.confirm("Delete this event? This cannot be undone.")) return;
+    try { await api("/events/" + encodeURIComponent(eventItem.id), { method: "DELETE" }); await load(); notify("Event deleted."); }
+    catch (deleteError) { notify(deleteError.message, "error"); }
+  };
+  return <>
+    <SectionHeading eyebrow="FLYTECH COMMUNITY" title="Events & group flights" subtitle="Plan a shared flight, publish a training session, or find other pilots to fly with." action={<button className="button-primary" onClick={() => user ? setFormOpen(value => !value) : navigate("settings")}><Plus size={15} /> {user ? "Create event" : "Sign in to join"}</button>} />
+    <div className="community-summary">
+      <div><div className="community-summary-icon"><CalendarDays size={20} /></div><strong>{events.length}</strong><span>Upcoming events</span></div>
+      <div><div className="community-summary-icon"><Users size={20} /></div><strong>{events.reduce((total, item) => total + Number(item.going_count || 0), 0)}</strong><span>Attendee places</span></div>
+      <div className="community-summary-copy"><strong>Better flights together</strong><p>Use event notes to agree on simulator, aircraft, route and voice-chat details before departure.</p></div>
+    </div>
+    {formOpen && <Panel title="Publish a community event" subtitle="Everyone can view events; pilots need an account to RSVP.">
+      <form className="event-create-form" onSubmit={createEvent}>
+        <Field label="Event title"><input value={form.title} onChange={event => setField("title", event.target.value)} minLength={4} maxLength={100} placeholder="Friday evening group flight" required /></Field>
+        <Field label="Event type"><select value={form.event_type} onChange={event => setField("event_type", event.target.value)}><option value="group_flight">Group flight</option><option value="training">Training</option><option value="fly_in">Fly-in</option><option value="community">Community meetup</option><option value="other">Other</option></select></Field>
+        <Field label="Meeting point / voice channel"><input value={form.location} onChange={event => setField("location", event.target.value)} maxLength={120} placeholder="Discord voice channel or airport ICAO" /></Field>
+        <Field label="Start"><input type="datetime-local" value={form.start_at} onChange={event => setField("start_at", event.target.value)} required /></Field>
+        <Field label="End"><input type="datetime-local" value={form.end_at} onChange={event => setField("end_at", event.target.value)} required /></Field>
+        <Field label="Description"><textarea value={form.description} onChange={event => setField("description", event.target.value)} maxLength={3000} rows={3} placeholder="Route, aircraft, simulator, network and preparation notes" /></Field>
+        <div className="event-form-actions"><button type="button" className="button-secondary" onClick={() => setFormOpen(false)}>Cancel</button><button type="submit" className="button-primary" disabled={creating}>{creating ? "Publishing…" : "Publish event"}</button></div>
+      </form>
+    </Panel>}
+    {!user && <div className="notice notice-info"><Users size={17} /><span>Browse upcoming events freely. Sign in to RSVP, or create an event for the community.</span></div>}
+    {error && <div className="notice notice-error"><AlertCircle size={16} /><span>{error}</span></div>}
+    {loading ? <EmptyState icon={CalendarDays} title="Loading the community calendar" text="Fetching published events." /> : events.length ? <div className="event-list">
+      {events.map(eventItem => <article className="event-card" key={eventItem.id}>
+        <div className="event-date-block"><span>{new Date(eventItem.start_at).toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}</span><strong>{new Date(eventItem.start_at).toLocaleDateString("en-GB", { day: "2-digit" })}</strong><small>{new Date(eventItem.start_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</small></div>
+        <div className="event-card-main"><div className="event-type-row"><Pill tone="blue">{titleCase(eventItem.event_type || "group_flight")}</Pill><span>Organised by {eventItem.creator_name || "FlyTech pilot"}</span></div><h2>{eventItem.title}</h2><p>{eventItem.description || "No additional details yet."}</p><div className="event-meta-row"><span><Clock3 size={14} /> {new Date(eventItem.start_at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>{eventItem.location && <span><MapPin size={14} /> {eventItem.location}</span>}<span><Users size={14} /> {eventItem.going_count || 0} going · {eventItem.interested_count || 0} interested</span></div></div>
+        <div className="event-actions">{eventItem.my_rsvp ? <button className="button-secondary" onClick={() => void rsvp(eventItem, null)}>Cancel RSVP</button> : <><button className="button-primary" onClick={() => void rsvp(eventItem, "going")}>I'm going</button><button className="button-secondary" onClick={() => void rsvp(eventItem, "interested")}>Interested</button></>}{user && String(user.id) === String(eventItem.created_by) && <button className="icon-button" aria-label="Delete event" title="Delete event" onClick={() => void removeEvent(eventItem)}><Trash2 size={15} /></button>}</div>
+      </article>)}
+    </div> : <EmptyState icon={CalendarDays} title="The calendar is clear" text="No upcoming events have been published. Start the first group flight or training session." action={user ? <button className="button-primary" onClick={() => setFormOpen(true)}><Plus size={14} /> Create event</button> : undefined} />}
+  </>;
+}
+
+function AcademyPage({ navigate }) {
+  const learningPaths = [
+    { number: "01", title: "Prepare a flight", description: "Import a SimBrief OFP, check the route and save your dispatch briefing.", icon: Route, page: "dispatch", action: "Open flight planning", level: "CORE WORKFLOW" },
+    { number: "02", title: "Read aviation weather", description: "Look up METAR and TAF reports and understand the freshness of the source data.", icon: CloudSun, page: "weather", action: "Open weather", level: "WEATHER BASICS" },
+    { number: "03", title: "Build your flight routine", description: "Use phase-based checklists and write down clear notes before and during a flight.", icon: ClipboardCheck, page: "checklists", action: "Open checklists", level: "COCKPIT HABITS" },
+    { number: "04", title: "Connect the simulator", description: "Set up the local Windows companion and verify that real telemetry reaches your account.", icon: Activity, page: "simulator", action: "Pair MSFS 2024", level: "TECHNICAL SETUP" },
+    { number: "05", title: "Review your flying", description: "Keep a simple flight history, track route details and organise your own records.", icon: BookOpen, page: "logbook", action: "Open logbook", level: "PERSONAL RECORDS" },
+    { number: "06", title: "Fly with others", description: "Discover virtual airlines and publish or join community events.", icon: Users, page: "events", action: "Explore community", level: "COMMUNITY" }
+  ];
+  return <>
+    <SectionHeading eyebrow="FLYTECH ACADEMY" title="Build your flight routine" subtitle="Short, practical guides that help you get more from your simulator setup. These are learning resources, not certified flight training." />
+    <div className="academy-hero"><div className="academy-hero-icon"><GraduationCap size={28} /></div><div><span className="eyebrow">YOUR LEARNING HUB</span><h2>From planning to post-flight</h2><p>Work through the paths in any order. Each guide takes you to a real FlyTech feature so you can practise with your own setup.</p></div></div>
+    <div className="academy-grid">{learningPaths.map(item => { const Icon = item.icon; return <article className="academy-card" key={item.number}><div className="academy-card-top"><span>{item.number}</span><Icon size={20} /></div><small>{item.level}</small><h2>{item.title}</h2><p>{item.description}</p><button className="text-action" onClick={() => navigate(item.page)}>{item.action} <ArrowRight size={14} /></button></article>; })}</div>
+    <div className="academy-note"><ShieldCheck size={18} /><p>Always verify aircraft-specific procedures, performance calculations and operational decisions using the documentation for your aircraft add-on and the rules of the network you fly on. FlyTech is a simulator companion, not a certified electronic flight bag for real-world operations.</p></div>
   </>;
 }
 

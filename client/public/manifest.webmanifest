@@ -1,1 +1,19 @@
-{"name":"FlightDeck EFB","short_name":"FlightDeck","start_url":"/","display":"standalone","background_color":"#071018","theme_color":"#071018","description":"A multi-user electronic flight bag for flight simulation.","icons":[]}
+{
+  "name": "FlyTech — Flight Simulation Workspace",
+  "short_name": "FlyTech",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f8fb",
+  "theme_color": "#f4f8fb",
+  "description": "Flight planning, aviation weather, simulator telemetry, flight records and community tools for flight simulation.",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

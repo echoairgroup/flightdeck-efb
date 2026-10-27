@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, CircleDot, Clock3, Cloud, CloudSun, Compass, Database,
   ExternalLink, FileText, Fuel, Gauge, Globe2, LayoutDashboard, LockKeyhole, LogIn,
   LogOut, Map, MapPin, Menu, Moon, Navigation, NotebookPen, Plane, Plug, Plus,
-  Radio, RefreshCw, Route, Save, Search, Settings, ShieldCheck, Smartphone, Sun,
+  Radio, RefreshCw, Route, Save, Search, Settings, ShieldCheck, Smartphone, Sun, Server,
   Trash2, UserRound, Users, Wifi, Wind, Wrench, X, Zap, ClipboardCheck
 } from "lucide-react";
 import L from "leaflet";
@@ -131,8 +131,8 @@ const normalizedAirport = point => ({
 const routeEndpoints = plan => {
   const raw = plan?.raw_data || plan?.rawData || plan || {};
   return {
-    origin: normalizedAirport(plan?.origin || raw?.origin),
-    destination: normalizedAirport(plan?.destination || raw?.destination)
+    origin: normalizedAirport(plan?.origin || plan?.departure || raw?.origin || raw?.departure),
+    destination: normalizedAirport(plan?.destination || plan?.arrival || raw?.destination || raw?.arrival)
   };
 };
 const greatCirclePoints = (start, end, count = 72) => {
@@ -692,7 +692,7 @@ function Dispatch({ user, plans, savePlan, removePlan, loading, navigate }) {
             <OFPValue label="Departure UTC" value={plan.etd || "Not provided"} />
             <OFPValue label="Estimated en route" value={plan.ete || displayDuration(plan.eteMinutes)} />
             <OFPValue label="Cruise altitude" value={plan.cruiseAltitude ? (String(plan.cruiseAltitude).match(/^\d+$/) ? "FL" + String(plan.cruiseAltitude).padStart(3, "0") : plan.cruiseAltitude) : "—"} />
-            <OFPValue label="Block fuel" value={plan.blockFuel ? formatNumber(plan.blockFuel) + " kg / lb (SimBrief units)" : "Not provided"} />
+            <OFPValue label="Block fuel" value={plan.blockFuel ? formatNumber(plan.blockFuel) + " (SimBrief units)" : "Not provided"} />
           </div>
           <div className="route-string"><div className="eyebrow">ROUTE STRING</div><p>{plan.route || "No route string was returned by SimBrief."}</p></div>
           <div className="notice notice-info"><AlertCircle size={16} /><span>The line on the map is a great-circle overview between airport coordinates, not a substitute for the OFP, airway routing or licensed navigation charts.</span></div>
@@ -733,7 +733,7 @@ function Airports({ airport, refreshAirport, loading }) {
     {searched && airport && <div className="airport-results">
       {airport.error ? <div className="notice notice-error"><AlertCircle size={17} /><span>{airport.error}</span></div> : <>
         <div className="airport-identity"><div className="airport-code-large">{airport.icao || airport.id || icao}</div><div><div className="eyebrow">{airport.country || airport.state || "AIRPORT"}</div><h2>{airport.name || "Airport details"}</h2><p>{airport.municipality || airport.city || airport.location || "Location not supplied by the data provider"}</p></div><Pill tone="green">Provider data</Pill></div>
-        <div className="airport-facts"><Fact label="ICAO" value={airport.icao || airport.id || icao} /><Fact label="IATA" value={airport.iata || airport.iata_code || "Not provided"} /><Fact label="Elevation" value={Number.isFinite(Number(airport.elevationFt)) ? formatNumber(airport.elevationFt) + " ft" : Number.isFinite(Number(airport.elevation)) ? formatNumber(airport.elevation) + " ft" : "Not provided"} /><Fact label="Coordinates" value={Number.isFinite(Number(airport.lat)) && Number.isFinite(Number(airport.lon)) ? Number(airport.lat).toFixed(4) + ", " + Number(airport.lon).toFixed(4) : "Not provided"} /></div>
+        <div className="airport-facts"><Fact label="ICAO" value={airport.icao || airport.id || icao} /><Fact label="IATA" value={airport.iata || airport.iata_code || "Not provided"} /><Fact label="Elevation" value={airport.elevationFt !== null && airport.elevationFt !== undefined && Number.isFinite(Number(airport.elevationFt)) ? formatNumber(airport.elevationFt) + " ft" : airport.elevation !== null && airport.elevation !== undefined && Number.isFinite(Number(airport.elevation)) ? formatNumber(airport.elevation) + " ft" : "Not provided"} /><Fact label="Coordinates" value={airport.lat !== null && airport.lat !== undefined && airport.lon !== null && airport.lon !== undefined && Number.isFinite(Number(airport.lat)) && Number.isFinite(Number(airport.lon)) ? Number(airport.lat).toFixed(4) + ", " + Number(airport.lon).toFixed(4) : "Not provided"} /></div>
         <div className="airport-detail-grid"><Panel title="Runways" subtitle="AirportDB enrichment when configured">{airport.runways?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Ident</th><th>Length</th><th>Surface</th></tr></thead><tbody>{airport.runways.map((r, i) => <tr key={r.id || i}><td className="strong-cell">{r.le_ident || r.ident || r.name || "—"}{r.he_ident ? " / " + r.he_ident : ""}</td><td>{r.length_ft ? formatNumber(r.length_ft) + " ft" : "—"}</td><td>{r.surface || "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon={Map} title="Runway detail unavailable" text="Runway and frequency data are only shown when the configured airport data provider returns them. FlightDeck will not fill gaps with guessed values." />}</Panel><Panel title="Frequencies" subtitle="Provider-supplied radio data">{airport.frequencies?.length ? <div className="frequency-list">{airport.frequencies.map((f, i) => <div key={f.id || i}><span>{f.type || f.description || "Frequency"}</span><strong>{f.frequency_mhz || f.frequency || "—"}</strong><small>{f.name || ""}</small></div>)}</div> : <EmptyState icon={Radio} title="No frequencies supplied" text="This data provider did not return frequency information for the selected airport." />}</Panel></div>
         <div className="source-caption"><ShieldCheck size={14} />Source: {airport.source || "airport data provider"}{airport.updatedAt ? " · retrieved " + new Date(airport.updatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}</div>
       </>}
@@ -766,7 +766,7 @@ function Weather({ weather, refreshWeather, loading }) {
     {result ? <>
       <div className="weather-meta-row"><span><span className="source-indicator" />{result.source || "Aviation weather provider"}</span><span>Retrieved {result.fetchedAt ? new Date(result.fetchedAt).toLocaleString("en-GB") : "just now"}</span><Pill tone={result.metar?.raw || result.metar?.rawOb ? "green" : "amber"}>{result.metar?.raw || result.metar?.rawOb ? "METAR returned" : "No current METAR"}</Pill></div>
       <div className="weather-grid">
-        <Panel title="METAR observation" subtitle={result.metar?.observationTime ? "Observation time " + new Date(result.metar.observationTime).toLocaleString("en-GB") : "Latest available station report"}><div className="weather-report"><div className="weather-report-icon"><Wind size={22} /></div><p>{result.metar?.raw || result.metar?.rawOb || result.metar?.raw_text || "The provider returned no current METAR for this station."}</p></div><div className="weather-subfacts"><Fact label="Wind" value={result.metar?.wind || "See raw report"} /><Fact label="Visibility" value={result.metar?.visibility || "See raw report"} /><Fact label="Temperature" value={result.metar?.temperature !== undefined ? result.metar.temperature + "°C" : "See raw report"} /><Fact label="Altimeter" value={result.metar?.altimeter || "See raw report"} /></div></Panel>
+        <Panel title="METAR observation" subtitle={result.metar?.observationTime ? "Observation time " + new Date(result.metar.observationTime).toLocaleString("en-GB") : "Latest available station report"}><div className="weather-report"><div className="weather-report-icon"><Wind size={22} /></div><p>{result.metar?.raw || result.metar?.rawOb || result.metar?.raw_text || "The provider returned no current METAR for this station."}</p></div><div className="weather-subfacts"><Fact label="Wind" value={result.metar?.wind || "See raw report"} /><Fact label="Visibility" value={result.metar?.visibility || "See raw report"} /><Fact label="Temperature" value={result.metar?.temperature !== undefined && result.metar?.temperature !== null ? result.metar.temperature + "°C" : "See raw report"} /><Fact label="Altimeter" value={result.metar?.altimeter || "See raw report"} /></div></Panel>
         <Panel title="Terminal forecast (TAF)" subtitle="Forecast validity depends on the report issued by the provider"><div className="weather-report"><div className="weather-report-icon forecast"><CloudSun size={22} /></div><p>{result.taf?.raw || result.taf?.rawTAF || result.taf?.raw_text || "The provider returned no TAF for this station."}</p></div><div className="notice notice-info"><AlertCircle size={15} /><span>METARs are observations; TAFs are forecasts. Check report issue times and validity periods before relying on them in your simulation.</span></div></Panel>
       </div>
     </> : <EmptyState icon={CloudSun} title="No weather loaded" text="Search an ICAO code to fetch a current report. FlightDeck does not fabricate missing observations or forecasts." />}

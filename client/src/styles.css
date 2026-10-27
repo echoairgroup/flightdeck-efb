@@ -1010,3 +1010,13 @@ input, select, textarea { border-radius: 9px; }
   .planner-map { height:320px; }
   .planner-map-actions { flex-direction:column; align-items:stretch; }
 }
+
+
+/* Account gate for the MSFS planner */
+.planner-auth-gate { max-width:760px; margin:clamp(22px,5vh,54px) auto; padding:clamp(24px,5vw,42px); text-align:center; border:1px solid var(--line); border-radius:22px; background:linear-gradient(140deg,var(--panel),var(--green-wash)); box-shadow:var(--shadow); }
+.planner-auth-icon { display:grid; place-items:center; width:62px; height:62px; margin:0 auto 20px; color:var(--accent); background:var(--panel); border:1px solid var(--line); border-radius:18px; }
+.planner-auth-gate h1 { margin:11px 0 13px; font-size:clamp(24px,4vw,34px); letter-spacing:-.04em; }
+.planner-auth-gate > p { max-width:580px; margin:0 auto; color:var(--text-soft); font-size:13px; line-height:1.8; }
+.planner-auth-actions { display:flex; justify-content:center; margin-top:22px; }
+.planner-auth-footnote { display:flex; align-items:flex-start; justify-content:center; gap:8px; max-width:520px; margin:22px auto 0; padding-top:16px; border-top:1px solid var(--line); text-align:left; color:var(--muted); font-size:11px; line-height:1.7; }
+.planner-auth-footnote svg { flex:0 0 auto; color:var(--accent); margin-top:2px; }

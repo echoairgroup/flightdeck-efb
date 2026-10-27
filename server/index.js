@@ -261,7 +261,7 @@ app.get("/api/health", async (req, res) => {
   if (pool) {
     try { await query("SELECT 1"); database = true; } catch {}
   }
-  res.json({ ok: true, service: "flightdeck-efb", version: "2.1.0", database, environment: production ? "production" : "development" });
+  res.json({ ok: true, service: "flightdeck-efb", version: "2.2.0", database, environment: production ? "production" : "development" });
 });
 
 app.get("/api/auth/me", async (req, res) => {

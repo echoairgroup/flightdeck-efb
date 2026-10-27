@@ -1,5 +1,11 @@
-const CACHE = "flytech-shell-v2";
-const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "flytech-shell-v3";
+const BASE_URL = new URL(self.registration.scope);
+const SHELL = [
+  BASE_URL.toString(),
+  new URL("manifest.webmanifest", BASE_URL).toString(),
+  new URL("icon.svg", BASE_URL).toString()
+];
+const ASSET_PREFIX = new URL("assets/", BASE_URL).pathname;
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -24,15 +30,15 @@ self.addEventListener("fetch", event => {
       fetch(request).then(response => {
         if (response.ok) {
           const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put("/", copy));
+          caches.open(CACHE).then(cache => cache.put(BASE_URL.toString(), copy));
         }
         return response;
-      }).catch(() => caches.match("/"))
+      }).catch(() => caches.match(BASE_URL.toString()))
     );
     return;
   }
 
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith(ASSET_PREFIX)) {
     event.respondWith(
       caches.match(request).then(cached => cached || fetch(request).then(response => {
         if (response.ok) {

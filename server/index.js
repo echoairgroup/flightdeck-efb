@@ -89,6 +89,93 @@ function firstValue(...values) {
   for (const value of values) if (value !== null && value !== undefined && String(value).trim() !== "") return value;
   return null;
 }
+
+const NEWS_FEEDS = [
+  {
+    category: "aviation",
+    url: "https://news.google.com/rss/search?q=airline+OR+aviation+OR+airport+when%3A7d&hl=en-GB&gl=GB&ceid=GB%3Aen"
+  },
+  {
+    category: "simulation",
+    url: "https://news.google.com/rss/search?q=%22Microsoft+Flight+Simulator%22+OR+X-Plane+OR+%22flight+simulation%22+when%3A30d&hl=en-GB&gl=GB&ceid=GB%3Aen"
+  }
+];
+
+function decodeXmlText(value = "") {
+  return String(value)
+    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&#(\\d+);/g, (_match, code) => {
+      const number = Number(code);
+      return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : "";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => {
+      const number = parseInt(code, 16);
+      return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : "";
+    })
+    .replace(/\\s+/g, " ")
+    .trim();
+}
+
+function xmlTagValue(xml, tag) {
+  const match = xml.match(new RegExp("<" + tag + "(?:\\\\s[^>]*)?>([\\\\s\\\\S]*?)</" + tag + ">", "i"));
+  return match ? decodeXmlText(match[1]) : "";
+}
+
+function parseNewsFeed(xml, category) {
+  const items = [...String(xml).matchAll(/<item(?:\\s[^>]*)?>([\\s\\S]*?)<\\/item>/gi)];
+  return items.map(match => {
+    const block = match[1];
+    const title = xmlTagValue(block, "title");
+    const rawLink = xmlTagValue(block, "link");
+    let link = "";
+    try {
+      const parsed = new URL(rawLink);
+      if (parsed.protocol === "https:") link = parsed.toString();
+    } catch {}
+    const publishedAtRaw = xmlTagValue(block, "pubDate");
+    const publishedAt = publishedAtRaw && Number.isFinite(Date.parse(publishedAtRaw)) ? new Date(publishedAtRaw).toISOString() : null;
+    const summary = xmlTagValue(block, "description").slice(0, 420);
+    const source = xmlTagValue(block, "source").slice(0, 100) || "Google News";
+    return { title: title.slice(0, 240), link, publishedAt, summary, source, category };
+  }).filter(item => item.title && item.link);
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
+async function sendWelcomeEmail(user) {
+  if (!user?.email || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return false;
+  const displayName = escapeHtml(user.display_name || user.username || "pilot");
+  const text = "Welcome to FlyTech, " + (user.display_name || user.username || "pilot") + "! Your account is ready. Sign in to explore flight planning, weather, logbook tools, community events and the MSFS 2024 companion setup guide. Fly safe, and enjoy your next flight.\\n\\nFlyTech";
+  const html = "<!doctype html><html><body style=\\"margin:0;background:#f4f8fb;font-family:Arial,sans-serif;color:#182c3e;padding:32px 16px\\"><main style=\\"max-width:560px;margin:0 auto;background:#fff;border:1px solid #e1eaf0;border-radius:18px;padding:32px\\"><div style=\\"font-weight:800;letter-spacing:.12em;color:#267dc3;font-size:13px\\">FLYTECH</div><h1 style=\\"font-size:28px;line-height:1.2;margin:22px 0 12px\\">Welcome aboard, " + displayName + ".</h1><p style=\\"font-size:15px;line-height:1.7;color:#41596d\\">Your FlyTech account is ready. We built your workspace to bring flight planning, aviation weather, flight records, simulator telemetry and the flight-sim community together in one place.</p><div style=\\"background:#e9f5fb;border-radius:12px;padding:18px;margin:22px 0\\"><strong>Your next steps</strong><p style=\\"margin:8px 0 0;line-height:1.7;color:#41596d\\">Import an existing SimBrief briefing, set your preferred aircraft, or open the MSFS 2024 setup guide to pair the Windows companion.</p></div><p style=\\"font-size:13px;color:#657d90;line-height:1.6\\">FlyTech is built for flight simulation. Always verify important procedures and data with your aircraft add-on documentation and official sources.</p><p style=\\"margin-top:28px;font-size:13px;color:#657d90\\">See you in the virtual skies,<br/><strong>The FlyTech team</strong></p></main></body></html>";
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + process.env.RESEND_API_KEY,
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM,
+      to: [user.email],
+      subject: "Welcome to FlyTech — your flight desk is ready",
+      text,
+      html
+    }),
+    signal: AbortSignal.timeout(7000)
+  });
+  if (!response.ok) throw new Error("Email provider returned HTTP " + response.status + ".");
+  return true;
+}
 function coordinate(value, min, max) {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
@@ -196,12 +283,17 @@ app.post("/api/auth/register", registerLimiter, async (req, res) => {
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!/^[a-z0-9_.-]{3,24}$/.test(username)) return res.status(400).json({ error: "Username must be 3–24 characters and use letters, numbers, dots, underscores or hyphens." });
   if (password.length < 8 || password.length > 128) return res.status(400).json({ error: "Password must contain between 8 and 128 characters." });
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address or leave it empty." });
+  if (!email) return res.status(400).json({ error: "Enter an email address so FlyTech can send your welcome message." });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address." });
   try {
     const hash = await bcrypt.hash(password, 12);
     const result = await query("INSERT INTO users(username,email,display_name,password_hash) VALUES($1,$2,$3,$4) RETURNING id,username,email,display_name,created_at", [username, email, displayName, hash]);
+    const welcomeEmailConfigured = Boolean(result.rows[0].email && process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
     res.cookie("fd_session", sessionToken(result.rows[0]), cookieOptions);
-    res.status(201).json({ user: publicUser(result.rows[0]) });
+    res.status(201).json({ user: publicUser(result.rows[0]), welcomeEmail: welcomeEmailConfigured ? "enabled" : "not-configured" });
+    if (welcomeEmailConfigured) {
+      void sendWelcomeEmail(result.rows[0]).catch(error => console.warn("Welcome email delivery failed:", error.message));
+    }
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "That username or email is already in use." });
     console.error("Registration failed:", error.message);
@@ -742,6 +834,35 @@ app.delete("/api/events/:id/rsvp", auth, async (req, res) => {
   const result = await query("DELETE FROM event_rsvps WHERE event_id=$1 AND user_id=$2 RETURNING event_id", [req.params.id,req.user.id]);
   if (!result.rowCount) return res.status(404).json({ error: "You do not have an RSVP for this event." });
   res.json({ ok: true });
+});
+
+app.get("/api/news", async (req, res) => {
+  const results = await Promise.all(NEWS_FEEDS.map(async feed => {
+    try {
+      const parsed = await cached("flytech-news:" + feed.category, 10 * 60 * 1000, async () => {
+        const response = await fetch(feed.url, {
+          headers: { Accept: "application/rss+xml, application/xml, text/xml", "User-Agent": "FlyTech/2.2 (+flight simulation workspace)" },
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) throw new Error("News source returned HTTP " + response.status + ".");
+        const xml = await response.text();
+        return parseNewsFeed(xml, feed.category);
+      });
+      return { articles: parsed, error: null };
+    } catch (error) {
+      return { articles: [], error: error.message };
+    }
+  }));
+  const seen = new Set();
+  const articles = results.flatMap(result => result.articles).filter(article => {
+    const key = article.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0)).slice(0, 36);
+  if (!articles.length) return res.status(502).json({ error: "External news feeds are temporarily unavailable." });
+  res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+  res.json({ articles, updatedAt: new Date().toISOString(), sourceCount: results.filter(result => result.articles.length).length });
 });
 
 app.use("/api", (req, res) => res.status(404).json({ error: "This API endpoint does not exist." }));

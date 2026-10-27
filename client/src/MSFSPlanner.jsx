@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Activity, AlertCircle, ArrowRight, ArrowDownRight, Check, CheckCircle2, Database, Download, FileText, LockKeyhole, LogIn, MapPin, Plane, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload, UserRound } from "lucide-react";
+import { Activity, AlertCircle, ArrowRight, ArrowDownRight, Check, CheckCircle2, Database, Download, FileText, LockKeyhole, MapPin, Plane, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload, UserRound } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -164,17 +164,6 @@ export default function MSFSPlanner({ user, aircraft, lookupAirport, savePlan, n
   const [error, setError] = useState("");
   const [fileBusy, setFileBusy] = useState(false);
 
-  if (!user) {
-    return <div className="planner-auth-gate">
-      <div className="planner-auth-icon"><LockKeyhole size={26} /></div>
-      <div className="eyebrow">PILOT ACCOUNT REQUIRED</div>
-      <h1>Sign in to use the MSFS Flight Planner</h1>
-      <p>Create a FlyTech account or sign in to build routes, edit waypoints, import and export MSFS 2024 flight plans, and save your planning work. No welcome email is sent, and no email address is required for registration.</p>
-      <div className="planner-auth-actions"><button type="button" className="button-primary" onClick={() => navigate("settings")}><UserRound size={15} /> Create account or sign in</button></div>
-      <div className="planner-auth-footnote"><ShieldCheck size={15} /><span>Planner drafts stay in this browser. Cloud saving requires a signed-in account and connected backend.</span></div>
-    </div>;
-  }
-
   useEffect(() => {
     try { localStorage.setItem("fd-msfs-planner-v1", JSON.stringify({ departureCode, arrivalCode, origin, destination, waypoints, routeType, cruiseAltitude, cruiseSpeed, flightNumber })); } catch {}
   }, [departureCode, arrivalCode, origin, destination, waypoints, routeType, cruiseAltitude, cruiseSpeed, flightNumber]);
@@ -288,6 +277,17 @@ export default function MSFSPlanner({ user, aircraft, lookupAirport, savePlan, n
       notify?.("Planner draft saved on this device.");
     } catch { notify?.("Could not save the local planner draft.", "error"); }
   };
+
+  if (!user) {
+    return <div className="planner-auth-gate">
+      <div className="planner-auth-icon"><LockKeyhole size={26} /></div>
+      <div className="eyebrow">PILOT ACCOUNT REQUIRED</div>
+      <h1>Sign in to use the MSFS Flight Planner</h1>
+      <p>Create a FlyTech account or sign in to build routes, edit waypoints, import and export MSFS 2024 flight plans, and save your planning work. No welcome email is sent, and no email address is required for registration.</p>
+      <div className="planner-auth-actions"><button type="button" className="button-primary" onClick={() => navigate("settings")}><UserRound size={15} /> Create account or sign in</button></div>
+      <div className="planner-auth-footnote"><ShieldCheck size={15} /><span>Planner drafts stay in this browser. Cloud saving requires a signed-in account and connected backend.</span></div>
+    </div>;
+  }
 
   return <>
     <div className="section-heading planner-heading"><div><div className="eyebrow">BUILT INTO FLYTECH</div><h1>MSFS Flight Planner</h1><p>Create a route on the map, add user waypoints, estimate distance and export a Microsoft Flight Simulator flight plan.</p></div><button className="button-secondary" type="button" onClick={reset}><RefreshCw size={15} /> Reset</button></div>

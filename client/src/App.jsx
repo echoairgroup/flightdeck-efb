@@ -213,9 +213,9 @@ function RouteMap({ plan }) {
     const a = endPoints.origin;
     const b = endPoints.destination;
     if ([a.lat, a.lon, b.lat, b.lon].every(Number.isFinite)) {
-      const line = L.polyline(greatCirclePoints(a, b), { color: "#b4d94d", weight: 3, opacity: 0.95, dashArray: "7 5" }).addTo(map);
-      L.circleMarker([a.lat, a.lon], { radius: 6, color: "#0f2018", weight: 2, fillColor: "#b4d94d", fillOpacity: 1 }).addTo(map).bindTooltip(a.icao || "Departure");
-      L.circleMarker([b.lat, b.lon], { radius: 6, color: "#0f2018", weight: 2, fillColor: "#ffffff", fillOpacity: 1 }).addTo(map).bindTooltip(b.icao || "Arrival");
+      const line = L.polyline(greatCirclePoints(a, b), { color: "#267dc3", weight: 3, opacity: 0.95, dashArray: "7 5" }).addTo(map);
+      L.circleMarker([a.lat, a.lon], { radius: 6, color: "#12324b", weight: 2, fillColor: "#267dc3", fillOpacity: 1 }).addTo(map).bindTooltip(a.icao || "Departure");
+      L.circleMarker([b.lat, b.lon], { radius: 6, color: "#12324b", weight: 2, fillColor: "#ffffff", fillOpacity: 1 }).addTo(map).bindTooltip(b.icao || "Arrival");
       map.fitBounds(line.getBounds(), { padding: [34, 34], maxZoom: 6 });
     }
     const resize = () => map.invalidateSize();

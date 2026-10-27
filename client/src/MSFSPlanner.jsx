@@ -291,7 +291,7 @@ export default function MSFSPlanner({ user, aircraft, lookupAirport, savePlan, n
 
   return <>
     <div className="section-heading planner-heading"><div><div className="eyebrow">BUILT INTO FLYTECH</div><h1>MSFS Flight Planner</h1><p>Create a route on the map, add user waypoints, estimate distance and export a Microsoft Flight Simulator flight plan.</p></div><button className="button-secondary" type="button" onClick={reset}><RefreshCw size={15} /> Reset</button></div>
-    <div className="planner-intro-banner"><div className="planner-intro-icon"><Plane size={24} /></div><div><strong>Your own flight-planning workspace</strong><p>The core planner works on GitHub Pages without a domain or account. A backend connection adds wider airport lookup and cloud saving.</p></div><span className="pill pill-green">MSFS 2024 · .PLN</span></div>
+    <div className="planner-intro-banner"><div className="planner-intro-icon"><Plane size={24} /></div><div><strong>Your own flight-planning workspace</strong><p>The planner is built into the GitHub Pages frontend. Sign in or create a FlyTech account to use it; no email address or welcome email is required. A backend connection adds wider airport lookup and cloud saving.</p></div><span className="pill pill-green">MSFS 2024 · .PLN</span></div>
     {error && <div className="notice notice-error"><AlertCircle size={17} /><span>{error}</span></div>}
     {lookupMessage && <div className="notice notice-info"><CheckCircle2 size={16} /><span>{lookupMessage}</span></div>}
     <div className="planner-workspace">

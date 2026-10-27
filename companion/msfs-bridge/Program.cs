@@ -16,7 +16,7 @@ namespace FlightDeckBridge
 {
     internal sealed class BridgeSettings
     {
-        public string BaseUrl { get; set; } = "https://flightdeck-efb.onrender.com";
+        public string BaseUrl { get; set; } = "";
         public string Token { get; set; } = "";
         public int DeviceId { get; set; }
     }
@@ -171,7 +171,7 @@ namespace FlightDeckBridge
                     var value = _json.Deserialize<BridgeSettings>(File.ReadAllText(_settingsPath));
                     if (value != null)
                     {
-                        if (String.IsNullOrWhiteSpace(value.BaseUrl)) value.BaseUrl = "https://flightdeck-efb.onrender.com";
+                        if (value.BaseUrl == null) value.BaseUrl = "";
                         return value;
                     }
                 }

@@ -78,7 +78,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .profile-meta strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .profile-meta span { font-size: 9px; color: var(--muted); }
 .sync-indicator, .connection-led, .status-dot { background: var(--faint); border-radius: 50%; width: 6px; height: 6px; flex: 0 0 auto; }
-.sync-indicator.is-connected, .connection-led.ok, .status-dot.green { background: #88b96b; box-shadow: 0 0 0 3px rgba(136,185,107,.1); }
+.sync-indicator.is-connected, .connection-led.ok, .status-dot.green { background: #21867a; box-shadow: 0 0 0 3px rgba(33,134,122,.12); }
 .connection-led.unknown, .status-dot.amber { background: var(--amber); box-shadow: 0 0 0 3px rgba(230,180,107,.1); }
 .side-nav { overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 23px; padding-right: 1px; }
 .side-nav::-webkit-scrollbar { width: 4px; }
@@ -125,7 +125,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .status-ribbon-item > div span { color: var(--muted); font-size: 9px; }
 .status-ribbon-item > div strong { font-size: 10px; font-weight: 650; white-space: nowrap; }
 .status-icon { width: 31px; height: 31px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 8px; background: var(--panel-raised); color: var(--muted); }
-.status-icon.green { color: #92b96e; }
+.status-icon.green { color: #21867a; }
 .status-icon.amber { color: var(--amber); }
 .status-icon.muted { color: var(--faint); }
 .status-ribbon-action { display: flex; align-items: center; gap: 7px; background: transparent; color: var(--text-soft); border: 0; padding: 0 4px 0 15px; font-size: 9px; font-weight: 650; white-space: nowrap; }
@@ -158,7 +158,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .text-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; color: var(--muted); font-size: 9px; font-weight: 650; padding: 4px 0; white-space: nowrap; }
 .route-panel { padding-bottom: 0; overflow: hidden; }
 .route-map-wrap { position: relative; margin: 0 -18px; height: 245px; background: var(--panel-alt); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; }
-.route-map { position: absolute; inset: 0; background: #e5e7df; z-index: 1; }
+.route-map { position: absolute; inset: 0; background: #edf4f8; z-index: 1; }
 .route-map .leaflet-container { font-family: Inter, sans-serif; }
 .route-map .leaflet-control-attribution { font-size: 8px; }
 .map-empty { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: color-mix(in srgb, var(--panel) 80%, transparent); padding: 18px; }
@@ -168,7 +168,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .map-legend { position: absolute; z-index: 5; bottom: 10px; left: 10px; right: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 94%, transparent); border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 18px rgba(0,0,0,.08); }
 .map-legend > span { display: flex; align-items: center; gap: 6px; color: var(--text-soft); font: 10px "DM Mono", monospace; }
 .map-legend i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.legend-origin { background: #b4d94d; }.legend-destination { background: #ffffff; border: 1px solid #88917c; }
+.legend-origin { background: #267dc3; }.legend-destination { background: #ffffff; border: 1px solid #8aa1b2; }
 .map-legend small { color: var(--muted); font-size: 8px; margin-left: auto; }
 .route-summary { display: flex; align-items: center; gap: 13px; padding: 15px 0 17px; }
 .route-summary > div:first-child, .route-summary > div:nth-child(3) { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -190,8 +190,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .route-code svg { color: var(--accent); }
 .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 100px; padding: 5px 7px; white-space: nowrap; border: 1px solid var(--line); color: var(--muted); background: var(--panel-alt); font-size: 8px; font-weight: 800; letter-spacing: .04em; }
 .pill-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
-.pill-green { color: #a7d08a; background: rgba(103,151,72,.1); border-color: rgba(140,182,106,.25); }
-.pill-green .pill-dot { background: #93c76d; }
+.pill-green { color: #7bc9b7; background: rgba(33,134,122,.1); border-color: rgba(33,134,122,.24); }
+.pill-green .pill-dot { background: #48a895; }
 .pill-amber { color: var(--amber); background: rgba(230,180,107,.08); border-color: rgba(230,180,107,.24); }
 .pill-amber .pill-dot { background: var(--amber); }
 .pill-muted .pill-dot { background: var(--muted); }
@@ -213,10 +213,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .telemetry-grid strong { font: 500 15px "DM Mono", monospace; color: var(--text-soft); }
 .telemetry-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
 .telemetry-footer > span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
-.telemetry-footer > span svg { color: #93c76d; }
+.telemetry-footer > span svg { color: #48a895; }
 .mini-status { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font: 8px "DM Mono", monospace; }
 .mini-status > span { width: 5px; height: 5px; background: var(--faint); border-radius: 50%; }
-.mini-status.online { color: #93c76d; }.mini-status.online > span { background: #93c76d; }
+.mini-status.online { color: #48a895; }.mini-status.online > span { background: #48a895; }
 .telemetry-offline { padding: 10px 0 2px; display: flex; flex-direction: column; align-items: flex-start; }
 .telemetry-offline-icon { width: 39px; height: 39px; border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; color: var(--muted); background: var(--panel-alt); margin-bottom: 14px; }
 .telemetry-offline strong { font-size: 11px; }
@@ -333,7 +333,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .weather-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin: -8px 0 17px; color: var(--muted); font-size: 9px; }
 .weather-meta-row > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
 .weather-meta-row > span:nth-child(2) { margin-left: auto; }
-.source-indicator { display: inline-block; width: 6px; height: 6px; background: #83b55f; border-radius: 50%; }
+.source-indicator { display: inline-block; width: 6px; height: 6px; background: #48a895; border-radius: 50%; }
 .weather-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-top: 16px; }
 .weather-report { display: flex; align-items: flex-start; gap: 11px; min-height: 102px; }
 .weather-report-icon { display: grid; place-items: center; border-radius: 10px; width: 38px; height: 38px; color: var(--accent); border: 1px solid var(--line); background: var(--panel-alt); flex: 0 0 auto; }
@@ -482,7 +482,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .connection-status-list > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .connection-status-list > div > span:first-child { color: var(--muted); font-size: 9px; }
 .toast { position: fixed; z-index: 100; bottom: 22px; right: 24px; max-width: min(420px,calc(100vw - 32px)); display: flex; align-items: flex-start; gap: 9px; padding: 13px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-raised); color: var(--text); box-shadow: 0 15px 45px rgba(0,0,0,.22); font-size: 10px; line-height: 1.5; animation: toast-in .18s ease; }
-.toast-symbol { color: #9aca79; flex: 0 0 auto; margin-top: 1px; }
+.toast-symbol { color: #21867a; flex: 0 0 auto; margin-top: 1px; }
 .toast-error .toast-symbol { color: var(--red); }
 .toast > span:nth-child(2) { flex: 1; }
 .toast > button { color: var(--muted); background: transparent; border: 0; padding: 0 0 0 5px; }
